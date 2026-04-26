@@ -1,3 +1,5 @@
+import asyncio
+
 from src.utils.logger import logger
 
 
@@ -20,6 +22,7 @@ class PieceManager:
         self.target_file_path = target_file_path
         self._piece_progress: dict[int, int] = {}
         self._last_reported_percent = -1
+        self._lock = asyncio.Lock()
 
     def register_piece_hash(self, index: int, piece_hash: bytes) -> None:
         self.pieces[index] = piece_hash
@@ -77,17 +80,24 @@ class PieceManager:
     def get_piece(self, index: int) -> bytes:
         return self.pieces[index]
 
-    def find_next_piece(self, peer_bitfield: bytes) -> int | None:
-        for idx in range(self.total_pieces):
-            if idx in self.downloaded_pieces or idx not in self.available_pieces:
-                continue
-            byte_index = idx // 8
-            bit_index = idx % 8
-            if byte_index >= len(peer_bitfield):
-                continue
-            has_pieces = (peer_bitfield[byte_index] >> (7 - bit_index)) & 1
-            if has_pieces:
-                return idx
+    async def find_next_piece(self, peer_bitfield: bytes) -> int | None:
+        async with self._lock:
+            for idx in range(self.total_pieces):
+                if idx in self.downloaded_pieces or idx not in self.available_pieces:
+                    continue
+
+                byte_index = idx // 8
+                bit_index = idx % 8
+
+                if byte_index >= len(peer_bitfield):
+                    continue
+
+                has_piece = (peer_bitfield[byte_index] >> (7 - bit_index)) & 1
+
+                if has_piece:
+                    self.available_pieces.discard(idx)
+                    return idx
+
         return None
 
     def mark_piece_downloaded(self, index: int) -> None:
@@ -95,7 +105,6 @@ class PieceManager:
             return
 
         self.downloaded_pieces.add(index)
-        self.available_pieces.discard(index)
 
         if self.total_pieces == 0:
             return
