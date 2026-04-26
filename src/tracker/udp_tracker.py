@@ -32,7 +32,9 @@ class UDPTracker(Tracker):
 
     def _connect(self, sock: socket.socket, endpoint: tuple[str, int]) -> int:
         transaction_id = self._transaction_id()
-        request = struct.pack("!QII", self.PROTOCOL_ID, self.CONNECT_ACTION, transaction_id)
+        request = struct.pack(
+            "!QII", self.PROTOCOL_ID, self.CONNECT_ACTION, transaction_id
+        )
         sock.sendto(request, endpoint)
 
         response, _ = sock.recvfrom(2048)
