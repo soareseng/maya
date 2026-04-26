@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import BinaryIO
 
+from src.utils.logger import logger
+
 
 class FileManager:
     def __init__(self):
@@ -9,7 +11,7 @@ class FileManager:
 
     def _get_file_handle(self, file_path: str) -> BinaryIO:
         full_path = Path(self.default_directory) / file_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_directory_path(full_path.parent)
         key = str(full_path)
 
         handle = self._open_files.get(key)
@@ -22,6 +24,23 @@ class FileManager:
 
         return handle
 
+    def _ensure_directory_path(self, directory: Path) -> None:
+        if not directory.parts:
+            return
+
+        current = Path(directory.root) if directory.is_absolute() else Path()
+        for part in directory.parts:
+            if part in {"", "/"}:
+                continue
+
+            current = current / part
+
+            if current.exists() and current.is_file():
+                current.unlink()
+
+            if not current.exists():
+                current.mkdir()
+
     def save_piece(
         self,
         piece_index: int,
@@ -30,12 +49,55 @@ class FileManager:
         piece_length: int,
         offset: int = 0,
     ) -> None:
-        print(
+        logger.debug(
             f"Saving piece {piece_index} to {file_path} at offset {offset} with length {len(data)}"
         )
         f = self._get_file_handle(file_path)
         f.seek(piece_index * piece_length + offset)
         f.write(data)
+
+    def save_piece_to_files(
+        self,
+        piece_index: int,
+        data: bytes,
+        piece_length: int,
+        files: list[dict],
+        offset: int = 0,
+    ) -> None:
+        absolute_offset = piece_index * piece_length + offset
+        remaining_start = absolute_offset
+        data_offset = 0
+        cumulative = 0
+
+        for file_info in files:
+            file_path = str(file_info["path"])
+            file_length = int(file_info["length"])
+            file_start = cumulative
+            file_end = file_start + file_length
+            cumulative = file_end
+
+            if remaining_start >= file_end:
+                continue
+
+            write_start = max(0, remaining_start - file_start)
+            writable = file_end - (file_start + write_start)
+            chunk_len = min(writable, len(data) - data_offset)
+
+            if chunk_len <= 0:
+                break
+
+            handle = self._get_file_handle(file_path)
+            handle.seek(write_start)
+            handle.write(data[data_offset : data_offset + chunk_len])
+
+            data_offset += chunk_len
+            remaining_start += chunk_len
+
+            if data_offset >= len(data):
+                return
+
+        if data_offset < len(data):
+            raise ValueError("Piece data exceeds declared torrent file layout")
 
     def read_piece(
         self,
@@ -45,7 +107,7 @@ class FileManager:
         piece_length: int,
         offset: int = 0,
     ) -> bytes:
-        print(
+        logger.debug(
             f"Reading piece {piece_index} from {file_path} at offset {offset} with length {length}"
         )
         full_path = Path(self.default_directory) / file_path
@@ -55,7 +117,7 @@ class FileManager:
 
     def preallocate_file(self, file_path: str, length: int) -> None:
         full_path = Path(self.default_directory) / file_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
+        self._ensure_directory_path(full_path.parent)
         with open(full_path, "wb") as f:
             f.truncate(length)
 
