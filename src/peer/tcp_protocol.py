@@ -1,13 +1,16 @@
 import asyncio
 import socket
-from typing import Any, Tuple
+from typing import Any
 
 from src.utils.logger import logger
-from .message import Message
+from .message import Message, MessageType
 
-CONNECT_TIMEOUT_SECONDS = 60
-READ_TIMEOUT_SECONDS = 30
-MAX_MESSAGE_SIZE = 16393
+CONNECT_TIMEOUT_SECONDS = 120
+READ_TIMEOUT_SECONDS = 120
+MAX_BLOCK_SIZE = 16 * 1024
+MAX_MESSAGE_SIZE = 10 * 1024 * 1024
+HANDSHAKE_LENGTH = 68
+PSTRLEN = 19
 
 
 class TCPProtocol:
@@ -46,25 +49,21 @@ class TCPProtocol:
         return b"".join(chunks)
 
     async def _send_handshake(self, info_hash: bytes, peer_id: bytes) -> None:
-        handshake_message = self.peer.handshake(
-            info_hash=info_hash, peer_id=peer_id
-        )
-        await asyncio.get_running_loop().sock_sendall(
-            self.socket, handshake_message
-        )
+        handshake_message = self.peer.handshake(info_hash=info_hash, peer_id=peer_id)
+        await asyncio.get_running_loop().sock_sendall(self.socket, handshake_message)
 
         logger.info(
             f"Handshake sent to {self.peer.ip}:{self.peer.port} - Peer ID: {peer_id.hex()}"
         )
 
     async def _wait_for_handshake(self, expected_info_hash: bytes) -> bool:
-        response = await self._recv_exact(68)
+        response = await self._recv_exact(HANDSHAKE_LENGTH)
 
-        if len(response) < 68:
+        if len(response) < HANDSHAKE_LENGTH:
             logger.error("Handshake too short")
             return False
 
-        if response[0] != 19:
+        if response[0] != PSTRLEN:
             logger.error("Invalid pstrlen")
             return False
 
@@ -104,77 +103,62 @@ class TCPProtocol:
             ok = await self._wait_for_handshake(info_hash)
             if not ok:
                 self.close()
+                logger.error(f"Handshake failed with {ip}:{port}")
+                return
 
         except (OSError, asyncio.TimeoutError) as exc:
             logger.error(f"Connection failed {ip}:{port}: {exc}")
             self.close()
 
-    async def _send_frame(self, message: Message, payload: bytes = b"") -> None:
-        length = len(payload) + 1
-
-        if length > MAX_MESSAGE_SIZE:
-            raise ValueError("Payload too large")
-
-        frame = length.to_bytes(4, "big") + bytes([message.value]) + payload
-
-        await asyncio.get_running_loop().sock_sendall(self.socket, frame)
-
-    async def send_message(
-        self, message: Message, payload: bytes = b""
-    ) -> None:
+    async def send_message(self, message: Message) -> None:
         if not self.is_connected:
             logger.warning("Send attempted without connection")
             return
 
         try:
-            if message == Message.HANDSHAKE:
-                await asyncio.get_running_loop().sock_sendall(
-                    self.socket, payload
-                )
-                return
-
-            await self._send_frame(message, payload)
-
+            await asyncio.get_running_loop().sock_sendall(
+                self.socket, message.to_bytes()
+            )
         except Exception as e:
             logger.error(f"Send error: {e}")
             self.close()
 
-    async def receive_message(self) -> Tuple[Message | None, bytes | None]:
+    async def receive_message(self) -> Message | None:
         try:
             header = await self._recv_exact(4)
 
             if not header:
                 logger.info("Peer closed connection")
                 self.close()
-                return None, None
+                return None
 
             length = int.from_bytes(header, "big")
 
             if length == 0:
-                return None, None
+                return None
 
             if length > MAX_MESSAGE_SIZE:
                 logger.error(f"Message too large: {length}")
                 self.close()
-                return None, None
+                return None
 
             message_id = await self._recv_exact(1)
             if not message_id:
                 self.close()
-                return None, None
+                return None
 
             payload = await self._recv_exact(length - 1) if length > 1 else b""
 
             try:
-                return Message(message_id[0]), payload
+                return Message(length, MessageType(message_id[0]), payload)
             except ValueError:
                 logger.warning(f"Unknown message: {message_id[0]}")
-                return None, payload
+                return None
 
         except Exception as e:
             logger.error(f"Receive error: {e}")
             self.close()
-            return None, None
+            return None
 
     def close(self) -> None:
         if self.is_connected:
