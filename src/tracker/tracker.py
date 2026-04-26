@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class Tracker(ABC):
@@ -12,5 +13,6 @@ class Tracker(ABC):
         uploaded: int = 0,
         downloaded: int = 0,
         left: int = 0,
-    ) -> dict:
-        pass
+        numwant: int = 50,
+    ) -> dict[str, Any]:
+        raise NotImplementedError
