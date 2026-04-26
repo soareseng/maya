@@ -1,9 +1,10 @@
 async def main():
     from src.torrent import Torrent
+    from src.ui.orange_black_tui import run_torrent_with_tui
 
     torrent = Torrent()
     torrent.load_from_path("tests/files/ubuntu.torrent")
-    await torrent.run()
+    await run_torrent_with_tui(torrent)
 
 
 if __name__ == "__main__":
