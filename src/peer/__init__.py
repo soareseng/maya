@@ -1,1 +1,1 @@
-from .peers import Peer
+from .peer import Peer
