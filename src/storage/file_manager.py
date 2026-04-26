@@ -14,8 +14,12 @@ class FileManager:
 
         handle = self._open_files.get(key)
         if handle is None or handle.closed:
+            if not full_path.exists():
+                open(full_path, "wb").close()
+
             handle = open(full_path, "r+b")
             self._open_files[key] = handle
+
         return handle
 
     def save_piece(
@@ -26,6 +30,9 @@ class FileManager:
         piece_length: int,
         offset: int = 0,
     ) -> None:
+        print(
+            f"Saving piece {piece_index} to {file_path} at offset {offset} with length {len(data)}"
+        )
         f = self._get_file_handle(file_path)
         f.seek(piece_index * piece_length + offset)
         f.write(data)
@@ -38,6 +45,9 @@ class FileManager:
         piece_length: int,
         offset: int = 0,
     ) -> bytes:
+        print(
+            f"Reading piece {piece_index} from {file_path} at offset {offset} with length {length}"
+        )
         full_path = Path(self.default_directory) / file_path
         with open(full_path, "rb") as f:
             f.seek(piece_index * piece_length + offset)
