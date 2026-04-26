@@ -3,7 +3,7 @@ async def main():
     from src.ui.orange_black_tui import run_torrent_with_tui
 
     torrent = Torrent()
-    torrent.load_from_path("tests/files/ubuntu.torrent")
+    torrent.load_from_path("tests/files/popos.torrent")
     await run_torrent_with_tui(torrent)
 
 

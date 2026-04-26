@@ -39,7 +39,6 @@ class PeerManager:
         return set(self.peers.values())
 
     def _retry_backoff(self, failures: int) -> int:
-        # Exponential backoff capped to avoid hammering dead endpoints.
         return min(MAX_RETRY_BACKOFF_SECONDS, MIN_RETRY_BACKOFF_SECONDS * (2 ** failures))
 
     async def _connect_peer(self, peer, info_hash: bytes) -> bool:
