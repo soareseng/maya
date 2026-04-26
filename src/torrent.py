@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from bencoder.src.bencoder import Decoder, Encoder
 from src.peer.peer import Peer
+from src.peer.peer_manager import PeerManager
 from src.piece.piece_manager import PieceManager
 from src.storage.file_manager import FileManager
 from src.tracker.http_tracker import HTTPTracker
@@ -15,10 +16,11 @@ from src.utils.logger import logger
 
 
 class Torrent:
-    PORT = 6881
+    PORT = 49152
     PEER_ID_PREFIX = b"-MA0001-"
-    TRACKER_NUMWANT = 100
-    MAX_PEERS = 200
+    TRACKER_NUMWANT = 200
+    MAX_PEERS = 300
+    REANNOUNCE_INTERVAL_SECONDS = 15
 
     def __init__(
         self,
@@ -46,6 +48,10 @@ class Torrent:
         self.connected_peers: list[Peer] = []
         self.piece_manager: PieceManager | None = None
         self.file_manager = FileManager()
+        self.peer_manager = PeerManager()
+        self.last_announce_ok = 0
+        self.last_announce_total = 0
+        self.last_announce_new_peers = 0
 
     def _get_tracker_client(self, tracker_url: str) -> HTTPTracker | UDPTracker:
         scheme = urlparse(tracker_url).scheme.lower()
@@ -81,7 +87,8 @@ class Torrent:
             self.files = []
             self.length = 0
             for f in info[b"files"]:
-                path = "/".join([p.decode("utf-8") for p in f[b"path"]])
+                path_parts = [p.decode("utf-8") for p in f[b"path"]]
+                path = str(Path(self.name, *path_parts))
                 length = f[b"length"]
                 self.files.append({"path": path, "length": length})
                 self.length += length
@@ -103,6 +110,8 @@ class Torrent:
             piece_length=self.piece_length,
             total_length=self.length,
             target_file_path=self.name,
+            torrent=self,
+            file_layout=self.files,
         )
         logger.info(f"Registering {self.number_of_pieces} pieces...")
         for i in range(self.number_of_pieces):
@@ -159,11 +168,11 @@ class Torrent:
             return False
 
         left = max(0, self.length - downloaded)
-        aggregated_peers: list[Peer] = []
-        seen_endpoints: set[tuple[str, int]] = set()
+        attempted_announces = len(self.announce_list)
         successful_announces = 0
+        total_new_peers = 0
 
-        for tracker_url in self.announce_list:
+        async def announce_single_tracker(tracker_url: str) -> tuple[str, list[Peer] | None, Exception | None]:
             try:
                 tracker_client = self._get_tracker_client(tracker_url)
                 response = await asyncio.to_thread(
@@ -177,36 +186,46 @@ class Torrent:
                     left,
                     self.TRACKER_NUMWANT,
                 )
-                tracker_peers = self._extract_peers_from_response(response)
-                added_from_tracker = 0
-                for peer in tracker_peers:
-                    endpoint = (peer.ip, peer.port)
-                    if endpoint in seen_endpoints:
-                        continue
-                    seen_endpoints.add(endpoint)
-                    aggregated_peers.append(peer)
-                    added_from_tracker += 1
-                    if len(aggregated_peers) >= self.MAX_PEERS:
-                        break
-
-                successful_announces += 1
-                logger.info(
-                    f"Successful announce: {tracker_url} | peers received={len(tracker_peers)} | new={added_from_tracker}"
-                )
-                if len(aggregated_peers) >= self.MAX_PEERS:
-                    break
+                return tracker_url, self._extract_peers_from_response(response), None
             except Exception as e:
-                logger.error(f"Failed to announce to {tracker_url}: {e}")
-                continue
+                return tracker_url, None, e
 
-        self.connected_peers = aggregated_peers
-        logger.info(
-            f"Total unique peers aggregated: {len(self.connected_peers)} (trackers OK: {successful_announces}/{len(self.announce_list)})"
+        results = await asyncio.gather(
+            *(announce_single_tracker(url) for url in self.announce_list),
+            return_exceptions=False,
         )
 
-        if not self.connected_peers:
+        for tracker_url, tracker_peers, error in results:
+            if error is not None:
+                logger.error(f"Failed to announce to {tracker_url}: {error}")
+                continue
+
+            if tracker_peers is None:
+                continue
+
+            successful_announces += 1
+            added_from_tracker = 0
+            for peer in tracker_peers:
+                if self.peer_manager.peer_count() >= self.MAX_PEERS:
+                    break
+                if self.peer_manager.add_peer(peer):
+                    added_from_tracker += 1
+
+            total_new_peers += added_from_tracker
+            logger.info(
+                f"Successful announce: {tracker_url} | peers received={len(tracker_peers)} | new={added_from_tracker}"
+            )
+
+        self.last_announce_ok = successful_announces
+        self.last_announce_total = attempted_announces
+        self.last_announce_new_peers = total_new_peers
+
+        if self.peer_manager.peer_count() == 0:
             logger.error("Failed to get peers from all trackers")
             return False
+
+        if total_new_peers > 0:
+            logger.info(f"New peers discovered in this announce cycle: {total_new_peers}")
 
         return True
 
@@ -263,20 +282,13 @@ class Torrent:
         return peers
 
     async def connect_to_peers(self) -> None:
-        if not self.connected_peers:
+        if self.peer_manager.peer_count() == 0:
             logger.warning("No peers available for connection")
             return
 
-        peer_tasks = []
-        for peer in self.connected_peers:
-            logger.info(
-                f"Connecting to peer: {peer.ip}:{peer.port} - Peer ID: {peer.peer_id.hex()}"
-            )
-            task = asyncio.create_task(
-                peer.connect_async(peer.ip, peer.port, self.info_hash)
-            )
-            peer_tasks.append(task)
-        await asyncio.gather(*peer_tasks)
+        started = await self.peer_manager.connect_new_peers(self.info_hash)
+        if started:
+            logger.info(f"Started connections for {started} new peer(s)")
 
     async def run(self) -> None:
         logger.info(f"Starting download: {self.name}")
@@ -285,7 +297,20 @@ class Torrent:
         logger.info("---")
 
         try:
-            await self.announce()
-            await self.connect_to_peers()
+            announced = await self.announce()
+            if announced:
+                await self.connect_to_peers()
+
+            while True:
+                if self.piece_manager and self.piece_manager.is_complete():
+                    logger.info("Download completed")
+                    break
+
+                await asyncio.sleep(self.REANNOUNCE_INTERVAL_SECONDS)
+
+                announced = await self.announce()
+                if announced:
+                    await self.connect_to_peers()
         finally:
+            await self.peer_manager.shutdown()
             self.file_manager.close_all()
