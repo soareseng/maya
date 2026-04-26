@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Any
 
-from src.peer.message import Message
+from src.peer.message import Message, MessageType
 from src.peer.tcp_protocol import TCPProtocol
 from src.utils.logger import logger
 
@@ -54,7 +54,7 @@ class Peer:
         byte_index = piece_index // 8
         bit_index = piece_index % 8
         if byte_index < len(self.bitfield):
-            self.bitfield[byte_index] |= (1 << (7 - bit_index))
+            self.bitfield[byte_index] |= 1 << (7 - bit_index)
 
     def handshake(self, info_hash: bytes, peer_id: bytes) -> bytes:
         return b"\x13BitTorrent protocol" + b"\x00" * 8 + info_hash + peer_id
@@ -70,11 +70,7 @@ class Peer:
         self.pending_requests.clear()
 
     async def _request_available_piece(self) -> None:
-        if (
-            not self.piece_manager
-            or not self.tcp_protocol
-            or self.peer_choking
-        ):
+        if not self.piece_manager or not self.tcp_protocol or self.peer_choking:
             return
 
         now = asyncio.get_event_loop().time()
@@ -83,7 +79,7 @@ class Peer:
         self.last_request_time = now
 
         if self.current_piece_index is None:
-            piece = self.piece_manager.find_next_piece(bytes(self.bitfield))
+            piece = await self.piece_manager.find_next_piece(bytes(self.bitfield))
             if piece is None:
                 return
 
@@ -91,9 +87,6 @@ class Peer:
             self.current_piece_size = self.piece_manager.get_piece_size(piece)
             self.next_request_offset = 0
             self.pending_requests.clear()
-
-            self.piece_manager.mark_piece_unavailable(piece)
-
             logger.info(f"Requesting piece {piece} from {self.peer_id.hex()}")
 
         while (
@@ -109,26 +102,33 @@ class Peer:
                 + size.to_bytes(4, "big")
             )
 
-            await self.tcp_protocol.send_message(Message.REQUEST, payload)
+            await self.tcp_protocol.send_message(
+                Message(
+                    msg_length=len(payload) + 1,
+                    msg_type=MessageType.REQUEST,
+                    payload=payload,
+                )
+            )
             self.pending_requests[offset] = size
             self.next_request_offset += size
 
     async def handle_message(self, message: Message, payload: bytes) -> None:
-        if message == Message.CHOKE:
+        msg_type = message.msg_type
+        if msg_type == MessageType.CHOKE:
             self.peer_choking = True
             self._release_current_piece()
 
-        elif message == Message.UNCHOKE:
+        elif msg_type == MessageType.UNCHOKE:
             self.peer_choking = False
             await self._request_available_piece()
 
-        elif message == Message.INTERESTED:
+        elif msg_type == MessageType.INTERESTED:
             self.peer_interested = True
 
-        elif message == Message.NOT_INTERESTED:
+        elif msg_type == MessageType.NOT_INTERESTED:
             self.peer_interested = False
 
-        elif message == Message.HAVE:
+        elif msg_type == MessageType.HAVE:
             if len(payload) != 4:
                 return
 
@@ -140,14 +140,14 @@ class Peer:
             self._set_piece_in_bitfield(piece_index)
             await self._request_available_piece()
 
-        elif message == Message.BITFIELD:
+        elif msg_type == MessageType.BITFIELD:
             try:
                 self.update_bitfield(payload)
                 await self._request_available_piece()
             except ValueError as e:
                 logger.error(e)
 
-        elif message == Message.PIECE:
+        elif msg_type == MessageType.PIECE:
             if len(payload) < 8:
                 return
 
@@ -163,13 +163,25 @@ class Peer:
                 self.pending_requests.pop(offset, None)
 
                 if complete:
+                    logger.info(
+                        f"Completed piece {piece_index} from {self.peer_id.hex()}"
+                    )
                     self._release_current_piece()
+                    message = Message(
+                        msg_length=5,
+                        msg_type=MessageType.HAVE,
+                        payload=piece_index.to_bytes(4, "big"),
+                    )
+                    logger.info(
+                        f"Sending HAVE for piece {piece_index} to {self.peer_id.hex()}"
+                    )
+                    await self.tcp_protocol.send_message(message)
                     if not self.peer_choking:
                         await self._request_available_piece()
                 else:
                     await self._request_available_piece()
 
-        elif message == Message.CANCEL:
+        elif msg_type == MessageType.CANCEL:
             if len(payload) >= 4 and self.piece_manager:
                 piece = int.from_bytes(payload[:4], "big")
                 self.piece_manager.mark_piece_available(piece)
@@ -177,22 +189,20 @@ class Peer:
     async def connect_async(self, ip: str, port: int, info_hash: bytes) -> None:
         self.tcp_protocol = TCPProtocol(self)
 
-        await self.tcp_protocol.create_connection(
-            ip, port, info_hash, self.peer_id
-        )
+        await self.tcp_protocol.create_connection(ip, port, info_hash, self.peer_id)
 
         if not self.tcp_protocol.is_connected:
             return
-
-        await self.tcp_protocol.send_message(Message.INTERESTED)
+        message = Message(msg_length=1, msg_type=MessageType.INTERESTED, payload=b"")
+        await self.tcp_protocol.send_message(message)
         self.am_interested = True
 
         try:
             while self.tcp_protocol.is_connected:
-                message, payload = await self.tcp_protocol.receive_message()
+                message = await self.tcp_protocol.receive_message()
 
                 if message is not None:
-                    await self.handle_message(message, payload)
+                    await self.handle_message(message, message.payload)
                 else:
                     await asyncio.sleep(0)
 
