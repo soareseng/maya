@@ -5,12 +5,19 @@ from typing import Any
 from src.utils.logger import logger
 from .message import Message, MessageType
 
-CONNECT_TIMEOUT_SECONDS = 120
-READ_TIMEOUT_SECONDS = 120
+CONNECT_TIMEOUT_SECONDS = 20
+READ_TIMEOUT_SECONDS = 30
 MAX_BLOCK_SIZE = 16 * 1024
 MAX_MESSAGE_SIZE = 10 * 1024 * 1024
 HANDSHAKE_LENGTH = 68
 PSTRLEN = 19
+EXPECTED_CONNECT_ERRNOS = {
+    60,  # timeout
+    61,  # connection refused
+    64,  # host down
+    65,  # no route to host
+    113,  # no route to host (linux)
+}
 
 
 class TCPProtocol:
@@ -21,6 +28,8 @@ class TCPProtocol:
 
     def _create_socket(self) -> socket.socket:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         sock.setblocking(False)
         return sock
 
@@ -107,7 +116,13 @@ class TCPProtocol:
                 return
 
         except (OSError, asyncio.TimeoutError) as exc:
-            logger.error(f"Connection failed {ip}:{port}: {exc}")
+            err_no = getattr(exc, "errno", None)
+            is_expected = isinstance(exc, asyncio.TimeoutError) or err_no in EXPECTED_CONNECT_ERRNOS
+
+            if is_expected:
+                logger.warning(f"Peer unavailable {ip}:{port}: {exc}")
+            else:
+                logger.error(f"Connection failed {ip}:{port}: {exc}")
             self.close()
 
     async def send_message(self, message: Message) -> None:
@@ -123,18 +138,36 @@ class TCPProtocol:
             logger.error(f"Send error: {e}")
             self.close()
 
+    async def send_keepalive(self) -> None:
+        if not self.is_connected:
+            return
+
+        try:
+            await asyncio.get_running_loop().sock_sendall(
+                self.socket,
+                b"\x00\x00\x00\x00",
+            )
+        except Exception as e:
+            logger.error(f"Keep-alive send error: {e}")
+            self.close()
+
     async def receive_message(self) -> Message | None:
         try:
             header = await self._recv_exact(4)
 
             if not header:
-                logger.info("Peer closed connection")
+                logger.debug(
+                    f"Connection closed by peer {self.peer.ip}:{self.peer.port}"
+                )
                 self.close()
-                return None
+                return None                
 
             length = int.from_bytes(header, "big")
 
             if length == 0:
+                logger.debug(
+                    f"Keep-alive message received from {self.peer.ip}:{self.peer.port}"
+                )
                 return None
 
             if length > MAX_MESSAGE_SIZE:
