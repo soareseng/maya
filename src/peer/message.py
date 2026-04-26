@@ -2,7 +2,6 @@ from enum import Enum
 
 
 class Message(Enum):
-    HANDSHAKE = -1
     CHOKE = 0
     UNCHOKE = 1
     INTERESTED = 2
