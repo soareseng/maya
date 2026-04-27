@@ -1,6 +1,6 @@
 # Maya
 
-<img src="screenshots/tui.png" alt="Maya TUI" width="900" />
+<img src="screenshots/ui.png" alt="Maya TUI" width="900" />
 
 Maya is a Python BitTorrent client project focused on torrent parsing, tracker communication, peer management, and piece/file handling.
 
