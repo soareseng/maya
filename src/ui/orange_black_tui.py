@@ -33,6 +33,7 @@ ANSI_ORANGE_BG = "\033[48;5;208m"
 ANSI_DIM_BG = "\033[48;5;234m"
 
 PROGRESS_RE = re.compile(r"\[PROGRESS\]\s*([0-9]+(?:\.[0-9]+)?)%")
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 SPINNER_FRAMES = ["|", "/", "-", "\\"]
 
 
@@ -304,8 +305,38 @@ class OrangeBlackTUI:
             return ANSI_YELLOW
         return ANSI_CYAN
 
+    def _fit_visible_width(self, text: str, width: int) -> str:
+        if width <= 0:
+            return ""
+
+        out: list[str] = []
+        visible = 0
+        index = 0
+
+        while index < len(text) and visible < width:
+            if text[index] == "\x1b":
+                match = ANSI_ESCAPE_RE.match(text, index)
+                if match:
+                    out.append(match.group(0))
+                    index = match.end()
+                    continue
+
+            out.append(text[index])
+            visible += 1
+            index += 1
+
+        if visible < width:
+            out.append(" " * (width - visible))
+
+        # Always terminate styles before rendering the right border.
+        out.append(ANSI_RESET)
+        return "".join(out)
+
+    def _visible_len(self, text: str) -> int:
+        return len(ANSI_ESCAPE_RE.sub("", text))
+
     def _render_line(self, text: str, inner: int, color: str = ANSI_WHITE) -> str:
-        content = text[:inner].ljust(inner)
+        content = self._fit_visible_width(text, inner)
         return (
             f"{ANSI_BLACK_BG}{ANSI_ORANGE}║{ANSI_RESET} "
             f"{color}{content}{ANSI_RESET} "
@@ -344,12 +375,23 @@ class OrangeBlackTUI:
         if self.state.pieces_total > 0:
             piece_ratio = self.state.pieces_done / self.state.pieces_total
 
+        top_inner = width - 2
+        header_title = f"{ANSI_BRIGHT_ORANGE} MAYA TORRENT CONTROL CENTER {ANSI_RESET}"
+        header_status = (
+            f"{self._status_color()}{spinner} {self.state.status:<11}{ANSI_RESET}"
+        )
+        spacer_count = max(
+            1,
+            top_inner - self._visible_len(header_title) - self._visible_len(header_status),
+        )
+        header_content = (
+            f"{header_title}{ANSI_DARK}{' ' * spacer_count}{ANSI_RESET}{header_status}"
+        )
+
         top = (
             f"{ANSI_BLACK_BG}{ANSI_ORANGE}╔{'═' * (width - 2)}╗{ANSI_RESET}\n"
             f"{ANSI_BLACK_BG}{ANSI_ORANGE}║{ANSI_RESET}"
-            f"{ANSI_BRIGHT_ORANGE} MAYA TORRENT CONTROL CENTER {ANSI_RESET}"
-            f"{ANSI_DARK}{' ' * max(0, width - 49)}"
-            f"{self._status_color()}{spinner} {self.state.status:<11}{ANSI_RESET}"
+            f"{self._fit_visible_width(header_content, top_inner)}"
             f"{ANSI_BLACK_BG}{ANSI_ORANGE}║{ANSI_RESET}\n"
             f"{ANSI_BLACK_BG}{ANSI_ORANGE}╠{'═' * (width - 2)}╣{ANSI_RESET}\n"
         )

@@ -26,7 +26,6 @@ class PieceManager:
         self.total_length = total_length
         self.target_file_path = target_file_path
         self.file_layout = file_layout or []
-        self._piece_progress: dict[int, int] = {}
         self._downloaded_bytes = 0
         self._last_reported_percent = -1
         self._lock = asyncio.Lock()
