@@ -371,9 +371,6 @@ class OrangeBlackTUI:
         peer_ratio = self.state.peers_connected / peer_count
         tracker_total = max(1, self.state.trackers_total)
         tracker_ratio = self.state.trackers_ok / tracker_total
-        piece_ratio = 0.0
-        if self.state.pieces_total > 0:
-            piece_ratio = self.state.pieces_done / self.state.pieces_total
 
         top_inner = width - 2
         header_title = f"{ANSI_BRIGHT_ORANGE} MAYA TORRENT CONTROL CENTER {ANSI_RESET}"
@@ -445,9 +442,6 @@ class OrangeBlackTUI:
 
         bar = self._progress_bar(inner - 2, self.state.progress_percent)
         body.append(self._render_line(bar, inner))
-
-        body.append(self._render_line("Completion", inner, ANSI_BRIGHT_ORANGE))
-        body.append(self._render_line(self._horizontal_meter(inner, piece_ratio, ANSI_ORANGE), inner))
 
         if self._view == "logs":
             log_lines = max(6, height - 18)
