@@ -47,13 +47,18 @@ def test_http_tracker_wraps_request_errors() -> None:
 
 def test_udp_tracker_endpoint_and_packet_building(monkeypatch) -> None:
     tracker = UDPTracker()
-    assert tracker._parse_endpoint("udp://tracker.local:80/announce") == ("tracker.local", 80)
+    assert tracker._parse_endpoint("udp://tracker.local:80/announce") == (
+        "tracker.local",
+        80,
+    )
 
     with pytest.raises(ValueError, match="Unsupported UDP tracker scheme"):
         tracker._parse_endpoint("http://tracker.local:80/announce")
 
     monkeypatch.setattr(tracker, "_transaction_id", lambda: 1234)
-    monkeypatch.setattr("src.tracker.udp_tracker.os.urandom", lambda n: b"\x01\x02\x03\x04")
+    monkeypatch.setattr(
+        "src.tracker.udp_tracker.os.urandom", lambda n: b"\x01\x02\x03\x04"
+    )
 
     request, transaction_id = tracker._build_announce_request(
         connection_id=55,
@@ -111,11 +116,17 @@ def test_udp_tracker_parse_response_and_announce(monkeypatch) -> None:
         struct.pack("!IIIII", tracker.ANNOUNCE_ACTION, 11, 30, 2, 3) + peers,
     ]
 
-    monkeypatch.setattr("src.tracker.udp_tracker.socket.socket", lambda *args, **kwargs: fake_socket)
+    monkeypatch.setattr(
+        "src.tracker.udp_tracker.socket.socket", lambda *args, **kwargs: fake_socket
+    )
     monkeypatch.setattr(tracker, "_transaction_id", lambda: 11)
-    monkeypatch.setattr("src.tracker.udp_tracker.os.urandom", lambda n: b"\x01\x02\x03\x04")
+    monkeypatch.setattr(
+        "src.tracker.udp_tracker.os.urandom", lambda n: b"\x01\x02\x03\x04"
+    )
 
-    result = tracker.announce("udp://tracker.local:80/announce", b"i" * 20, b"p" * 20, 6881)
+    result = tracker.announce(
+        "udp://tracker.local:80/announce", b"i" * 20, b"p" * 20, 6881
+    )
 
     assert result == {"peers": peers, "interval": 30, "complete": 3, "incomplete": 2}
     assert fake_socket.closed is True

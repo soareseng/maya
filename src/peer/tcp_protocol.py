@@ -117,7 +117,10 @@ class TCPProtocol:
 
         except (OSError, asyncio.TimeoutError) as exc:
             err_no = getattr(exc, "errno", None)
-            is_expected = isinstance(exc, asyncio.TimeoutError) or err_no in EXPECTED_CONNECT_ERRNOS
+            is_expected = (
+                isinstance(exc, asyncio.TimeoutError)
+                or err_no in EXPECTED_CONNECT_ERRNOS
+            )
 
             if is_expected:
                 logger.warning(f"Peer unavailable {ip}:{port}: {exc}")
@@ -160,7 +163,7 @@ class TCPProtocol:
                     f"Connection closed by peer {self.peer.ip}:{self.peer.port}"
                 )
                 self.close()
-                return None                
+                return None
 
             length = int.from_bytes(header, "big")
 

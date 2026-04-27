@@ -172,7 +172,9 @@ class Torrent:
         successful_announces = 0
         total_new_peers = 0
 
-        async def announce_single_tracker(tracker_url: str) -> tuple[str, list[Peer] | None, Exception | None]:
+        async def announce_single_tracker(
+            tracker_url: str,
+        ) -> tuple[str, list[Peer] | None, Exception | None]:
             try:
                 tracker_client = self._get_tracker_client(tracker_url)
                 response = await asyncio.to_thread(
@@ -225,7 +227,9 @@ class Torrent:
             return False
 
         if total_new_peers > 0:
-            logger.info(f"New peers discovered in this announce cycle: {total_new_peers}")
+            logger.info(
+                f"New peers discovered in this announce cycle: {total_new_peers}"
+            )
 
         return True
 

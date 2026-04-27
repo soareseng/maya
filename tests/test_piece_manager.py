@@ -25,7 +25,9 @@ def _make_manager(
     torrent=None,
     pieces_count: int = 2,
 ) -> PieceManager:
-    torrent = torrent or SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set()))
+    torrent = torrent or SimpleNamespace(
+        peer_manager=SimpleNamespace(get_peers=lambda: set())
+    )
     return PieceManager(
         pieces=[b"hash"] * pieces_count,
         file_manager=FakeFileManager(),
@@ -60,7 +62,9 @@ def test_register_block_completes_piece_and_sends_have() -> None:
     class FakePeer:
         def __init__(self) -> None:
             self.peer_id = b"peer-1"
-            self.tcp_protocol = SimpleNamespace(is_connected=True, send_message=AsyncMock())
+            self.tcp_protocol = SimpleNamespace(
+                is_connected=True, send_message=AsyncMock()
+            )
 
         def __hash__(self) -> int:
             return id(self)
@@ -85,7 +89,13 @@ def test_register_block_completes_piece_and_sends_have() -> None:
     assert manager.get_downloaded_bytes() == 4
     assert manager.is_complete()
     assert manager.file_manager.saved_piece_calls == [
-        {"piece_index": 0, "data": b"abcd", "file_path": "target.bin", "piece_length": 4, "offset": 0}
+        {
+            "piece_index": 0,
+            "data": b"abcd",
+            "file_path": "target.bin",
+            "piece_length": 4,
+            "offset": 0,
+        }
     ]
     peer_protocol.send_message.assert_awaited_once()
     sent_message = peer_protocol.send_message.await_args.args[0]
@@ -101,7 +111,10 @@ def test_register_block_uses_multi_file_layout_when_present() -> None:
         total_length=4,
         target_file_path="target.bin",
         torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
-        file_layout=[{"path": "file-a.bin", "length": 2}, {"path": "file-b.bin", "length": 2}],
+        file_layout=[
+            {"path": "file-a.bin", "length": 2},
+            {"path": "file-b.bin", "length": 2},
+        ],
     )
 
     complete = asyncio.run(manager.register_block(index=0, data=b"ab", offset=0))
@@ -112,7 +125,10 @@ def test_register_block_uses_multi_file_layout_when_present() -> None:
             "piece_index": 0,
             "data": b"ab",
             "piece_length": 4,
-            "files": [{"path": "file-a.bin", "length": 2}, {"path": "file-b.bin", "length": 2}],
+            "files": [
+                {"path": "file-a.bin", "length": 2},
+                {"path": "file-b.bin", "length": 2},
+            ],
             "offset": 0,
         }
     ]

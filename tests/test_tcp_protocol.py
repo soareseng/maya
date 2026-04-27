@@ -28,9 +28,15 @@ class FakeLoop:
 def _make_protocol(monkeypatch, recv_chunks=None):
     fake_socket = SimpleNamespace(close=Mock())
     monkeypatch.setattr(TCPProtocol, "_create_socket", lambda self: fake_socket)
-    protocol = TCPProtocol(SimpleNamespace(ip="127.0.0.1", port=6881, handshake=lambda **kwargs: b"handshake"))
+    protocol = TCPProtocol(
+        SimpleNamespace(
+            ip="127.0.0.1", port=6881, handshake=lambda **kwargs: b"handshake"
+        )
+    )
     fake_loop = FakeLoop(recv_chunks=recv_chunks)
-    monkeypatch.setattr("src.peer.tcp_protocol.asyncio.get_running_loop", lambda: fake_loop)
+    monkeypatch.setattr(
+        "src.peer.tcp_protocol.asyncio.get_running_loop", lambda: fake_loop
+    )
     return protocol, fake_loop, fake_socket
 
 
@@ -63,7 +69,12 @@ def test_receive_message_parses_keepalive_and_payload(monkeypatch) -> None:
     payload = (1).to_bytes(4, "big")
     protocol, _, fake_socket = _make_protocol(
         monkeypatch,
-        recv_chunks=[b"\x00\x00\x00\x00", b"\x00\x00\x00\x05", bytes([MessageType.HAVE.value]), payload],
+        recv_chunks=[
+            b"\x00\x00\x00\x00",
+            b"\x00\x00\x00\x05",
+            bytes([MessageType.HAVE.value]),
+            payload,
+        ],
     )
 
     assert asyncio.run(protocol.receive_message()) is None
@@ -73,12 +84,18 @@ def test_receive_message_parses_keepalive_and_payload(monkeypatch) -> None:
     assert message.payload == payload
 
 
-def test_receive_message_closes_on_large_message_and_wait_for_handshake_failure(monkeypatch) -> None:
-    protocol, _, fake_socket = _make_protocol(monkeypatch, recv_chunks=[(MAX_MESSAGE_SIZE + 1).to_bytes(4, "big")])
+def test_receive_message_closes_on_large_message_and_wait_for_handshake_failure(
+    monkeypatch,
+) -> None:
+    protocol, _, fake_socket = _make_protocol(
+        monkeypatch, recv_chunks=[(MAX_MESSAGE_SIZE + 1).to_bytes(4, "big")]
+    )
     assert asyncio.run(protocol.receive_message()) is None
     fake_socket.close.assert_called()
 
     truncated_handshake = b"\x13BitTorrent protocol" + b"\x00" * 8 + b"i" * 10
-    protocol, _, fake_socket = _make_protocol(monkeypatch, recv_chunks=[truncated_handshake])
+    protocol, _, fake_socket = _make_protocol(
+        monkeypatch, recv_chunks=[truncated_handshake]
+    )
     assert asyncio.run(protocol._wait_for_handshake(b"i" * 20)) is False
     fake_socket.close.assert_not_called()

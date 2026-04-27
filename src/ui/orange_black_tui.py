@@ -165,9 +165,7 @@ class OrangeBlackTUI:
 
         peers = self.torrent.peer_manager.get_peers()
         self.state.peers_connected = sum(
-            1
-            for peer in peers
-            if peer.tcp_protocol and peer.tcp_protocol.is_connected
+            1 for peer in peers if peer.tcp_protocol and peer.tcp_protocol.is_connected
         )
 
         self.state.trackers_ok = getattr(self.torrent, "last_announce_ok", 0)
@@ -200,10 +198,7 @@ class OrangeBlackTUI:
         clamped = max(0.0, min(100.0, value))
         fill = int((clamped / 100.0) * width)
         empty = width - fill
-        return (
-            f"{ANSI_ORANGE_BG}{' ' * fill}"
-            f"{ANSI_DIM_BG}{' ' * empty}{ANSI_RESET}"
-        )
+        return f"{ANSI_ORANGE_BG}{' ' * fill}" f"{ANSI_DIM_BG}{' ' * empty}{ANSI_RESET}"
 
     def _horizontal_meter(self, width: int, ratio: float, color: str) -> str:
         clamped = max(0.0, min(1.0, ratio))
@@ -351,7 +346,9 @@ class OrangeBlackTUI:
         for level, message in logs:
             label = f"[{level[:4]}]"
             rendered = f"{label} {message}".replace("\n", " ")
-            body.append(self._render_line(rendered, inner, self._color_for_level(level)))
+            body.append(
+                self._render_line(rendered, inner, self._color_for_level(level))
+            )
 
         for _ in range(max(0, lines - len(logs))):
             body.append(self._render_line("", inner, ANSI_GRAY))
@@ -379,7 +376,9 @@ class OrangeBlackTUI:
         )
         spacer_count = max(
             1,
-            top_inner - self._visible_len(header_title) - self._visible_len(header_status),
+            top_inner
+            - self._visible_len(header_title)
+            - self._visible_len(header_status),
         )
         header_content = (
             f"{header_title}{ANSI_DARK}{' ' * spacer_count}{ANSI_RESET}{header_status}"
@@ -430,12 +429,26 @@ class OrangeBlackTUI:
                     inner,
                 )
             )
-            body.append(self._render_line("Peer Connectivity", inner, ANSI_BRIGHT_ORANGE))
-            body.append(self._render_line(self._horizontal_meter(inner, peer_ratio, ANSI_GREEN), inner))
-            body.append(self._render_line("Tracker Availability", inner, ANSI_BRIGHT_ORANGE))
-            body.append(self._render_line(self._horizontal_meter(inner, tracker_ratio, ANSI_CYAN), inner))
+            body.append(
+                self._render_line("Peer Connectivity", inner, ANSI_BRIGHT_ORANGE)
+            )
+            body.append(
+                self._render_line(
+                    self._horizontal_meter(inner, peer_ratio, ANSI_GREEN), inner
+                )
+            )
+            body.append(
+                self._render_line("Tracker Availability", inner, ANSI_BRIGHT_ORANGE)
+            )
+            body.append(
+                self._render_line(
+                    self._horizontal_meter(inner, tracker_ratio, ANSI_CYAN), inner
+                )
+            )
         else:
-            body.append(self._render_line("Live Logs Stream", inner, ANSI_BRIGHT_ORANGE))
+            body.append(
+                self._render_line("Live Logs Stream", inner, ANSI_BRIGHT_ORANGE)
+            )
 
         progress_label = f"Progress: {self.state.progress_percent:6.2f}%"
         body.append(self._render_line(progress_label, inner, ANSI_BRIGHT_ORANGE))
@@ -450,7 +463,9 @@ class OrangeBlackTUI:
         self._render_logs_panel(body, inner, log_lines)
 
         if self._show_help:
-            help_text = "Keys: [1]Overview [2]Network [3]Logs [h]Help [+/ -]Refresh [q]Quit"
+            help_text = (
+                "Keys: [1]Overview [2]Network [3]Logs [h]Help [+/ -]Refresh [q]Quit"
+            )
             body.append(self._render_line(help_text, inner, ANSI_GRAY))
 
         bottom = f"{ANSI_BLACK_BG}{ANSI_ORANGE}╚{'═' * (width - 2)}╝{ANSI_RESET}"

@@ -23,7 +23,10 @@ class FakePieceManager:
 def test_handshake_and_update_bitfield_validation() -> None:
     peer = Peer(peer_id=b"peer", number_of_pieces=16)
 
-    assert peer.handshake(b"a" * 20, b"b" * 20) == b"\x13BitTorrent protocol" + b"\x00" * 8 + b"a" * 20 + b"b" * 20
+    assert (
+        peer.handshake(b"a" * 20, b"b" * 20)
+        == b"\x13BitTorrent protocol" + b"\x00" * 8 + b"a" * 20 + b"b" * 20
+    )
     assert peer.update_bitfield(b"\xff\x00") == b"\xff\x00"
 
     with pytest.raises(ValueError, match="Invalid bitfield size"):
@@ -72,14 +75,23 @@ def test_handle_message_state_transitions_and_cancel() -> None:
     asyncio.run(peer.handle_message(Message(1, MessageType.NOT_INTERESTED, b""), b""))
     assert peer.peer_interested is False
 
-    asyncio.run(peer.handle_message(Message(5, MessageType.HAVE, (2).to_bytes(4, "big")), (2).to_bytes(4, "big")))
+    asyncio.run(
+        peer.handle_message(
+            Message(5, MessageType.HAVE, (2).to_bytes(4, "big")), (2).to_bytes(4, "big")
+        )
+    )
     assert peer.bitfield[0] & 0b00100000
 
     before = bytes(peer.bitfield)
     asyncio.run(peer.handle_message(Message(5, MessageType.BITFIELD, b"\x00"), b"\x00"))
     assert bytes(peer.bitfield) == before
 
-    asyncio.run(peer.handle_message(Message(5, MessageType.CANCEL, (7).to_bytes(4, "big")), (7).to_bytes(4, "big")))
+    asyncio.run(
+        peer.handle_message(
+            Message(5, MessageType.CANCEL, (7).to_bytes(4, "big")),
+            (7).to_bytes(4, "big"),
+        )
+    )
     piece_manager.mark_piece_available.assert_called_with(7)
 
 
@@ -93,7 +105,11 @@ def test_handle_message_piece_completion_releases_current_piece() -> None:
     peer._request_available_piece = AsyncMock()
 
     payload = (4).to_bytes(4, "big") + (0).to_bytes(4, "big") + b"abcd"
-    asyncio.run(peer.handle_message(Message(len(payload) + 1, MessageType.PIECE, payload), payload))
+    asyncio.run(
+        peer.handle_message(
+            Message(len(payload) + 1, MessageType.PIECE, payload), payload
+        )
+    )
 
     piece_manager.register_block.assert_awaited_once_with(4, b"abcd", offset=0)
     assert peer.current_piece_index is None
@@ -107,7 +123,9 @@ def test_connect_async_success_and_failure(monkeypatch) -> None:
             self.is_connected = connected
             self.sent = []
 
-        async def create_connection(self, ip: str, port: int, info_hash: bytes, peer_id: bytes) -> None:
+        async def create_connection(
+            self, ip: str, port: int, info_hash: bytes, peer_id: bytes
+        ) -> None:
             self.is_connected = True
 
         async def send_message(self, message: Message) -> None:
@@ -135,7 +153,9 @@ def test_connect_async_success_and_failure(monkeypatch) -> None:
     assert fake_protocol.sent[0].msg_type == MessageType.INTERESTED
 
     class ClosedProtocol(FakeProtocol):
-        async def create_connection(self, ip: str, port: int, info_hash: bytes, peer_id: bytes) -> None:
+        async def create_connection(
+            self, ip: str, port: int, info_hash: bytes, peer_id: bytes
+        ) -> None:
             self.is_connected = False
 
     closed_protocol = ClosedProtocol(peer=None)  # type: ignore[arg-type]

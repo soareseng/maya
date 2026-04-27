@@ -14,10 +14,15 @@ def test_sha1_helpers_match_hashlib() -> None:
 
 
 def test_message_serialization_round_trip() -> None:
-    message = Message(msg_length=5, msg_type=MessageType.HAVE, payload=b"\x00\x00\x00\x01")
+    message = Message(
+        msg_length=5, msg_type=MessageType.HAVE, payload=b"\x00\x00\x00\x01"
+    )
 
     assert message.to_bytes() == b"\x00\x00\x00\x05\x04\x00\x00\x00\x01"
-    assert str(message) == "Message(length=5, type=MessageType.HAVE, payload=b'\\x00\\x00\\x00\\x01')"
+    assert (
+        str(message)
+        == "Message(length=5, type=MessageType.HAVE, payload=b'\\x00\\x00\\x00\\x01')"
+    )
 
 
 def test_colored_formatter_restores_levelname() -> None:
@@ -33,4 +38,6 @@ def test_colored_formatter_restores_levelname() -> None:
 def test_logger_is_configured() -> None:
     assert logger.name == "Maya"
     assert logger.handlers
-    assert any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers)
+    assert any(
+        isinstance(handler, logging.StreamHandler) for handler in logger.handlers
+    )

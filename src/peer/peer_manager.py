@@ -3,7 +3,6 @@ import time
 
 from src.utils.logger import logger
 
-
 MIN_RETRY_BACKOFF_SECONDS = 5
 MAX_RETRY_BACKOFF_SECONDS = 90
 
@@ -39,7 +38,7 @@ class PeerManager:
         return set(self.peers.values())
 
     def _retry_backoff(self, failures: int) -> int:
-        return min(MAX_RETRY_BACKOFF_SECONDS, MIN_RETRY_BACKOFF_SECONDS * (2 ** failures))
+        return min(MAX_RETRY_BACKOFF_SECONDS, MIN_RETRY_BACKOFF_SECONDS * (2**failures))
 
     async def _connect_peer(self, peer, info_hash: bytes) -> bool:
         try:
@@ -48,7 +47,9 @@ class PeerManager:
             logger.error(f"Unexpected peer task failure {peer.ip}:{peer.port}: {exc}")
             return False
 
-    async def _connect_peer_task(self, endpoint: tuple[str, int], peer, info_hash: bytes) -> None:
+    async def _connect_peer_task(
+        self, endpoint: tuple[str, int], peer, info_hash: bytes
+    ) -> None:
         try:
             connected = await self._connect_peer(peer, info_hash)
             now = time.monotonic()

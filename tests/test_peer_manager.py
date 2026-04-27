@@ -3,11 +3,16 @@ from unittest.mock import AsyncMock
 
 import asyncio
 
-from src.peer.peer_manager import MAX_RETRY_BACKOFF_SECONDS, MIN_RETRY_BACKOFF_SECONDS, PeerManager
+from src.peer.peer_manager import (
+    MAX_RETRY_BACKOFF_SECONDS,
+    MIN_RETRY_BACKOFF_SECONDS,
+    PeerManager,
+)
 
 
 def test_add_remove_and_get_peers() -> None:
     manager = PeerManager()
+
     class FakePeer:
         def __init__(self, ip: str, port: int) -> None:
             self.ip = ip

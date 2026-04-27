@@ -38,7 +38,10 @@ def _build_multi_file_torrent(path: Path) -> Path:
             {b"length": 3, b"path": [b"dir", b"two.bin"]},
         ],
     }
-    torrent_data = {b"announce-list": [[b"udp://tracker.local:80/announce"]], b"info": info}
+    torrent_data = {
+        b"announce-list": [[b"udp://tracker.local:80/announce"]],
+        b"info": info,
+    }
     torrent_path = path / "bundle.torrent"
     _write_torrent_file(torrent_path, torrent_data)
     return torrent_path
@@ -118,19 +121,31 @@ def test_extract_and_parse_peers() -> None:
             "incomplete": 3,
         }
     )
-    assert [(peer.ip, peer.port) for peer in peers] == [("127.0.0.1", 6881), ("127.0.0.2", 7000)]
+    assert [(peer.ip, peer.port) for peer in peers] == [
+        ("127.0.0.1", 6881),
+        ("127.0.0.2", 7000),
+    ]
 
     peers = torrent._extract_peers_from_response(
         {
-            "peers": [{"ip": b"127.0.0.3", "port": 6882}, {"ip": "127.0.0.4", "port": 6883}],
+            "peers": [
+                {"ip": b"127.0.0.3", "port": 6882},
+                {"ip": "127.0.0.4", "port": 6883},
+            ],
             "interval": 12,
             "complete": 2,
             "incomplete": 3,
         }
     )
-    assert [(peer.ip, peer.port) for peer in peers] == [("127.0.0.3", 6882), ("127.0.0.4", 6883)]
+    assert [(peer.ip, peer.port) for peer in peers] == [
+        ("127.0.0.3", 6882),
+        ("127.0.0.4", 6883),
+    ]
 
-    assert [(peer.ip, peer.port) for peer in torrent._parse_peers(b"\x7f\x00\x00\x01\x1a\xe1\x00")] == [("127.0.0.1", 6881)]
+    assert [
+        (peer.ip, peer.port)
+        for peer in torrent._parse_peers(b"\x7f\x00\x00\x01\x1a\xe1\x00")
+    ] == [("127.0.0.1", 6881)]
 
 
 def test_get_tracker_client_and_missing_trackers() -> None:
@@ -177,14 +192,21 @@ def test_load_from_path_supports_multi_file_layout(tmp_path, monkeypatch) -> Non
 
 
 def test_announce_and_connect_to_peers() -> None:
-    torrent = Torrent(announce_list=["http://tracker.local/announce"], length=10, number_of_pieces=2)
+    torrent = Torrent(
+        announce_list=["http://tracker.local/announce"], length=10, number_of_pieces=2
+    )
     torrent.info_hash = b"x" * 20
     torrent.peer_manager = torrent.peer_manager.__class__()
     torrent.piece_manager = SimpleNamespace()
 
     class FakeTracker:
         def announce(self, *args, **kwargs):
-            return {"peers": b"\x7f\x00\x00\x01\x1a\xe1", "interval": 30, "complete": 1, "incomplete": 0}
+            return {
+                "peers": b"\x7f\x00\x00\x01\x1a\xe1",
+                "interval": 30,
+                "complete": 1,
+                "incomplete": 0,
+            }
 
     torrent.http_tracker = FakeTracker()
     torrent._get_tracker_client = Mock(return_value=torrent.http_tracker)
@@ -195,13 +217,17 @@ def test_announce_and_connect_to_peers() -> None:
     assert torrent.last_announce_total == 1
     assert torrent.last_announce_new_peers == 1
 
-    torrent.peer_manager = SimpleNamespace(peer_count=Mock(return_value=0), connect_new_peers=AsyncMock(return_value=0))
+    torrent.peer_manager = SimpleNamespace(
+        peer_count=Mock(return_value=0), connect_new_peers=AsyncMock(return_value=0)
+    )
     asyncio.run(torrent.connect_to_peers())
     torrent.peer_manager.connect_new_peers.assert_not_awaited()
 
 
 def test_run_stops_when_piece_manager_completes(monkeypatch) -> None:
-    torrent = Torrent(announce_list=["http://tracker.local/announce"], name="sample.txt")
+    torrent = Torrent(
+        announce_list=["http://tracker.local/announce"], name="sample.txt"
+    )
     torrent.peer_manager.shutdown = AsyncMock()
     torrent.file_manager.close_all = Mock()
     torrent.announce = AsyncMock(return_value=True)

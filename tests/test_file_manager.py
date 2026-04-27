@@ -26,12 +26,15 @@ def test_save_piece_and_read_piece(tmp_path, monkeypatch) -> None:
     )
     manager.close_all()
 
-    assert manager.read_piece(
-        piece_index=1,
-        length=4,
-        file_path="chunks/data.bin",
-        piece_length=4,
-    ) == b"abcd"
+    assert (
+        manager.read_piece(
+            piece_index=1,
+            length=4,
+            file_path="chunks/data.bin",
+            piece_length=4,
+        )
+        == b"abcd"
+    )
 
 
 def test_save_piece_to_files_spans_multiple_files(tmp_path, monkeypatch) -> None:
@@ -50,15 +53,21 @@ def test_save_piece_to_files_spans_multiple_files(tmp_path, monkeypatch) -> None
     )
     manager.close_all()
 
-    assert (tmp_path / "downloads" / "multi" / "first.bin").read_bytes() == b"\x00\x00AB"
+    assert (
+        tmp_path / "downloads" / "multi" / "first.bin"
+    ).read_bytes() == b"\x00\x00AB"
     assert (tmp_path / "downloads" / "multi" / "second.bin").read_bytes() == b"CDEF"
 
 
-def test_save_piece_to_files_raises_when_layout_is_too_small(tmp_path, monkeypatch) -> None:
+def test_save_piece_to_files_raises_when_layout_is_too_small(
+    tmp_path, monkeypatch
+) -> None:
     monkeypatch.chdir(tmp_path)
     manager = FileManager()
 
-    with pytest.raises(ValueError, match="Piece data exceeds declared torrent file layout"):
+    with pytest.raises(
+        ValueError, match="Piece data exceeds declared torrent file layout"
+    ):
         manager.save_piece_to_files(
             piece_index=0,
             data=b"ABCDE",

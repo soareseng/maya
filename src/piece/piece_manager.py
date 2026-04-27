@@ -63,9 +63,9 @@ class PieceManager:
 
             self.blocks[index][offset] = len(data)
             self._downloaded_bytes += len(data)
-            self._received_bytes_per_piece[index] = (
-                self._received_bytes_per_piece.get(index, 0) + len(data)
-            )
+            self._received_bytes_per_piece[index] = self._received_bytes_per_piece.get(
+                index, 0
+            ) + len(data)
 
             piece_size = self._piece_size(index)
             received = self._received_bytes_per_piece[index]

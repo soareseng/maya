@@ -19,7 +19,9 @@ def _make_tui() -> OrangeBlackTUI:
     torrent = SimpleNamespace(
         name="sample.txt",
         announce_list=["http://tracker.local/announce"],
-        peer_manager=SimpleNamespace(get_peers=lambda: {FakePeer(True), FakePeer(False)}),
+        peer_manager=SimpleNamespace(
+            get_peers=lambda: {FakePeer(True), FakePeer(False)}
+        ),
         last_announce_ok=2,
         last_announce_total=3,
         last_announce_new_peers=1,
