@@ -41,8 +41,3 @@ pytest
 - `src/storage/`: File preallocation and writing
 - `src/ui/`: Terminal user interface
 - `tests/`: Unit tests
-
-## Notes
-
-- This repository includes a local `bencoder` package used by the client.
-- Downloaded files are stored under the `downloads/` directory.
