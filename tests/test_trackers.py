@@ -3,7 +3,7 @@ import struct
 import pytest
 import requests
 
-from bencoder.src.bencoder import Encoder
+from src.encoder.bencoder import Encoder
 from src.tracker.http_tracker import HTTPTracker
 from src.tracker.udp_tracker import UDPTracker
 

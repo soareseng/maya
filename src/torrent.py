@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from bencoder.src.bencoder import Decoder, Encoder
+from src.encoder.bencoder import Decoder, Encoder
 from src.peer.peer import Peer
 from src.peer.peer_manager import PeerManager
 from src.piece.piece_manager import PieceManager

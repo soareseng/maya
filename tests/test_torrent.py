@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from bencoder.src.bencoder import Encoder
+from src.encoder.bencoder import Encoder
 from src.torrent import Torrent
 from src.utils.hash import sha1_encode
 

@@ -2,7 +2,7 @@ from typing import Any
 
 import requests
 
-from bencoder.src.bencoder import Decoder
+from src.encoder.bencoder import Decoder
 from src.tracker.tracker import Tracker
 from src.utils.logger import logger
 
