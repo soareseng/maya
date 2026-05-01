@@ -18,7 +18,7 @@ MESSAGE_TO_FUNC_MAPPER = {
     },
     MessageType.UNCHOKE: {
         "func": "process_unchoke",
-        "is_async": False,
+        "is_async": True,
         "expects_payload": False,
     },
     MessageType.INTERESTED: {
@@ -33,17 +33,17 @@ MESSAGE_TO_FUNC_MAPPER = {
     },
     MessageType.HAVE: {
         "func": "process_have",
-        "is_async": False,
+        "is_async": True,
         "expects_payload": True,
     },
     MessageType.BITFIELD: {
         "func": "process_bitfield",
-        "is_async": False,
+        "is_async": True,
         "expects_payload": True,
     },
     MessageType.PIECE: {
         "func": "process_piece",
-        "is_async": False,
+        "is_async": True,
         "expects_payload": True,
     },
     MessageType.CANCEL: {
@@ -222,10 +222,13 @@ class Peer:
 
     async def handle_message(self, message: Message, payload: bytes) -> None:
         msg_type = message.msg_type
-        func_name, is_async, expects_payload = MESSAGE_TO_FUNC_MAPPER.get(msg_type)
-        if func_name is None:
+        message_handler = MESSAGE_TO_FUNC_MAPPER.get(msg_type)
+        if message_handler is None:
             logger.warning(f"Unknown message type {msg_type} from {self.peer_id.hex()}")
             return
+        func_name = message_handler["func"]
+        is_async = message_handler["is_async"]
+        expects_payload = message_handler["expects_payload"]
         func = getattr(self, func_name, None)
         if func is None:
             logger.warning(

@@ -86,13 +86,16 @@ def test_handle_message_state_transitions_and_cancel() -> None:
     asyncio.run(peer.handle_message(Message(5, MessageType.BITFIELD, b"\x00"), b"\x00"))
     assert bytes(peer.bitfield) == before
 
+    peer.pending_requests[(7, 0)] = 4
+    cancel_payload = (7).to_bytes(4, "big") + (0).to_bytes(4, "big")
     asyncio.run(
         peer.handle_message(
-            Message(5, MessageType.CANCEL, (7).to_bytes(4, "big")),
-            (7).to_bytes(4, "big"),
+            Message(9, MessageType.CANCEL, cancel_payload),
+            cancel_payload,
         )
     )
-    piece_manager.mark_piece_available.assert_called_with(7)
+    assert (7, 0) not in peer.pending_requests
+    piece_manager.mark_piece_available.assert_called_once_with(3)
 
 
 def test_handle_message_piece_completion_releases_current_piece() -> None:
