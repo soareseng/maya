@@ -6,9 +6,52 @@ from src.peer.tcp_protocol import TCPProtocol
 from src.utils.logger import logger
 
 BLOCK_SIZE = 16384
-MAX_INFLIGHT_REQUESTS = 24
+MAX_INFLIGHT_REQUESTS = 10
 PEER_MESSAGE_IDLE_TIMEOUT_SECONDS = 30
 MAX_PENDING_STALL_TIMEOUTS = 2
+
+MESSAGE_TO_FUNC_MAPPER = {
+    MessageType.CHOKE: {
+        "func": "process_choke",
+        "is_async": False,
+        "expects_payload": False,
+    },
+    MessageType.UNCHOKE: {
+        "func": "process_unchoke",
+        "is_async": False,
+        "expects_payload": False,
+    },
+    MessageType.INTERESTED: {
+        "func": "process_interested",
+        "is_async": False,
+        "expects_payload": False,
+    },
+    MessageType.NOT_INTERESTED: {
+        "func": "process_not_interested",
+        "is_async": False,
+        "expects_payload": False,
+    },
+    MessageType.HAVE: {
+        "func": "process_have",
+        "is_async": False,
+        "expects_payload": True,
+    },
+    MessageType.BITFIELD: {
+        "func": "process_bitfield",
+        "is_async": False,
+        "expects_payload": True,
+    },
+    MessageType.PIECE: {
+        "func": "process_piece",
+        "is_async": False,
+        "expects_payload": True,
+    },
+    MessageType.CANCEL: {
+        "func": "process_cancel",
+        "is_async": False,
+        "expects_payload": True,
+    },
+}
 
 
 class Peer:
@@ -112,68 +155,92 @@ class Peer:
             self.pending_requests[(self.current_piece_index, offset)] = size
             self.next_request_offset += size
 
+    def process_choke(self) -> None:
+        self.peer_choking = True
+        self._release_current_piece()
+
+    async def process_unchoke(self) -> None:
+        self.peer_choking = False
+        await self._request_available_piece()
+
+    def process_interested(self) -> None:
+        self.peer_interested = True
+
+    def process_not_interested(self) -> None:
+        self.peer_interested = False
+
+    async def process_have(self, payload: bytes) -> None:
+        if len(payload) != 4:
+            return
+
+        piece_index = int.from_bytes(payload, "big")
+
+        if piece_index >= self.number_of_pieces:
+            return
+
+        self._set_piece_in_bitfield(piece_index)
+        await self._request_available_piece()
+
+    async def process_bitfield(self, payload: bytes) -> None:
+        try:
+            logger.debug(f"Received bitfield from {self.peer_id.hex()}")
+            self.update_bitfield(payload)
+            await self._request_available_piece()
+        except ValueError as e:
+            logger.error(e)
+
+    async def process_piece(self, payload: bytes) -> None:
+        if len(payload) < 8:
+            return
+
+        piece_index = int.from_bytes(payload[:4], "big")
+        offset = int.from_bytes(payload[4:8], "big")
+        block = payload[8:]
+
+        if self.piece_manager:
+            complete = await self.piece_manager.register_block(
+                piece_index, block, offset=offset
+            )
+
+            self.pending_requests.pop((piece_index, offset), None)
+
+            if complete:
+                self._release_current_piece()
+                if not self.peer_choking:
+                    await self._request_available_piece()
+            else:
+                await self._request_available_piece()
+
+    def process_cancel(self, payload: bytes) -> None:
+        if len(payload) < 8:
+            return
+
+        piece_index = int.from_bytes(payload[:4], "big")
+        offset = int.from_bytes(payload[4:8], "big")
+
+        self.pending_requests.pop((piece_index, offset), None)
+
     async def handle_message(self, message: Message, payload: bytes) -> None:
         msg_type = message.msg_type
-        if msg_type == MessageType.CHOKE:
-            self.peer_choking = True
-            self._release_current_piece()
-
-        elif msg_type == MessageType.UNCHOKE:
-            self.peer_choking = False
-            await self._request_available_piece()
-
-        elif msg_type == MessageType.INTERESTED:
-            self.peer_interested = True
-
-        elif msg_type == MessageType.NOT_INTERESTED:
-            self.peer_interested = False
-
-        elif msg_type == MessageType.HAVE:
-            if len(payload) != 4:
-                return
-
-            piece_index = int.from_bytes(payload, "big")
-
-            if piece_index >= self.number_of_pieces:
-                return
-
-            self._set_piece_in_bitfield(piece_index)
-            await self._request_available_piece()
-
-        elif msg_type == MessageType.BITFIELD:
-            try:
-                logger.debug(f"Received bitfield from {self.peer_id.hex()}")
-                self.update_bitfield(payload)
-                await self._request_available_piece()
-            except ValueError as e:
-                logger.error(e)
-
-        elif msg_type == MessageType.PIECE:
-            if len(payload) < 8:
-                return
-
-            piece_index = int.from_bytes(payload[:4], "big")
-            offset = int.from_bytes(payload[4:8], "big")
-            block = payload[8:]
-
-            if self.piece_manager:
-                complete = await self.piece_manager.register_block(
-                    piece_index, block, offset=offset
-                )
-
-                self.pending_requests.pop((piece_index, offset), None)
-
-                if complete:
-                    self._release_current_piece()
-                    if not self.peer_choking:
-                        await self._request_available_piece()
-                else:
-                    await self._request_available_piece()
-
-        elif msg_type == MessageType.CANCEL:
-            if len(payload) >= 4 and self.piece_manager:
-                piece = int.from_bytes(payload[:4], "big")
-                self.piece_manager.mark_piece_available(piece)
+        func_name, is_async, expects_payload = MESSAGE_TO_FUNC_MAPPER.get(msg_type)
+        if func_name is None:
+            logger.warning(f"Unknown message type {msg_type} from {self.peer_id.hex()}")
+            return
+        func = getattr(self, func_name, None)
+        if func is None:
+            logger.warning(
+                f"No handler function {func_name} for message type {msg_type}"
+            )
+            return
+        if expects_payload and not payload:
+            logger.warning(
+                f"Message type {msg_type} from {self.peer_id.hex()} expected payload but got none"
+            )
+            return
+        if is_async:
+            await func(payload) if expects_payload else await func()
+        else:
+            func(payload) if expects_payload else func()
 
     async def connect_async(self, ip: str, port: int, info_hash: bytes) -> bool:
         self.tcp_protocol = TCPProtocol(self)
