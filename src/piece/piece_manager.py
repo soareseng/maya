@@ -71,21 +71,25 @@ class PieceManager:
             received = self._received_bytes_per_piece[index]
 
         if self.file_layout:
-            self.file_manager.save_piece_to_files(
+            task = asyncio.to_thread(
+                self.file_manager.save_piece_to_files,
                 piece_index=index,
                 data=data,
                 piece_length=self.piece_length,
                 files=self.file_layout,
                 offset=offset,
             )
+            await task
         else:
-            self.file_manager.save_piece(
+            task = asyncio.to_thread(
+                self.file_manager.save_piece,
                 piece_index=index,
                 data=data,
                 file_path=self.target_file_path,
                 piece_length=self.piece_length,
                 offset=offset,
             )
+            await task
 
         if received >= piece_size:
             await self.mark_piece_downloaded(index)
@@ -100,7 +104,7 @@ class PieceManager:
 
     async def acquire_piece(self, peer_bitfield: bytes) -> int | None:
         async with self._lock:
-            for idx in self.available:
+            for idx in list(self.available):
                 if idx in self.downloaded:
                     continue
 
