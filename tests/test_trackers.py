@@ -55,6 +55,9 @@ def test_udp_tracker_endpoint_and_packet_building(monkeypatch) -> None:
     with pytest.raises(ValueError, match="Unsupported UDP tracker scheme"):
         tracker._parse_endpoint("http://tracker.local:80/announce")
 
+    with pytest.raises(ValueError, match="Invalid UDP tracker URL format"):
+        tracker._parse_endpoint("udp://tracker.local/announce")
+
     monkeypatch.setattr(tracker, "_transaction_id", lambda: 1234)
     monkeypatch.setattr(
         "src.tracker.udp_tracker.os.urandom", lambda n: b"\x01\x02\x03\x04"
