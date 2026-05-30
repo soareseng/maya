@@ -45,33 +45,25 @@ class PieceManager:
     def get_piece_size(self, index: int) -> int:
         return self._piece_size(index)
 
-    async def register_block(
-        self,
-        index: int,
-        data: bytes,
-        offset: int,
-    ) -> bool:
+    async def register_block(self, index, data, offset):
         async with self._lock:
             if index in self.downloaded:
                 return False
-
             if index not in self.blocks:
                 self.blocks[index] = {}
-
             if offset in self.blocks[index]:
                 return False
-
             self.blocks[index][offset] = len(data)
             self._downloaded_bytes += len(data)
             self._received_bytes_per_piece[index] = self._received_bytes_per_piece.get(
                 index, 0
             ) + len(data)
-
             piece_size = self._piece_size(index)
             received = self._received_bytes_per_piece[index]
 
+        try:
             if self.file_layout:
-                task = asyncio.to_thread(
+                await asyncio.to_thread(
                     self.file_manager.save_piece_to_files,
                     piece_index=index,
                     data=data,
@@ -79,9 +71,8 @@ class PieceManager:
                     files=self.file_layout,
                     offset=offset,
                 )
-                await task
             else:
-                task = asyncio.to_thread(
+                await asyncio.to_thread(
                     self.file_manager.save_piece,
                     piece_index=index,
                     data=data,
@@ -89,15 +80,23 @@ class PieceManager:
                     piece_length=self.piece_length,
                     offset=offset,
                 )
-                await task
+        except Exception:
+            async with self._lock:
+                self._downloaded_bytes -= len(data)
+                self._received_bytes_per_piece[index] -= len(data)
+                self.blocks[index].pop(offset, None)
+                if not self.blocks[index]:
+                    self.blocks.pop(index, None)
+            raise
 
-            if received >= piece_size:
-                await self.mark_piece_downloaded(index)
+        if received >= piece_size:
+            await self.mark_piece_downloaded(index)
+            async with self._lock:
                 self.blocks.pop(index, None)
                 self._received_bytes_per_piece.pop(index, None)
-                return True
+            return True
 
-            return False
+        return False
 
     def get_piece(self, index: int) -> bytes:
         return self.pieces[index]
