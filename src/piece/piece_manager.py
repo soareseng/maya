@@ -2,6 +2,7 @@ import asyncio
 from typing import Dict
 from src.peer.message import MessageType, Message
 
+from src.storage.file_manager import FileManager
 from src.utils.logger import logger
 
 
@@ -9,7 +10,7 @@ class PieceManager:
     def __init__(
         self,
         pieces: list[bytes],
-        file_manager,
+        file_manager: FileManager,
         piece_length: int,
         total_length: int,
         target_file_path: str,
@@ -32,6 +33,29 @@ class PieceManager:
         self.blocks: Dict[int, Dict[int, int]] = {}
         self._received_bytes_per_piece: dict[int, int] = {}
         self.torrent = torrent
+        self.piece_to_file_mapper = {}
+
+    def _construct_piece_to_file_mapper(self):
+        if not self.file_layout:
+            return
+
+        for piece_index in range(self.total_pieces):
+            piece_offset = piece_index * self.piece_length
+            for file_info in self.file_layout:
+                file_start = file_info["offset"]
+                file_end = file_start + file_info["length"]
+                if file_start <= piece_offset < file_end:
+                    self.piece_to_file_mapper[piece_index] = file_info["path"]
+                    break
+
+    def _get_file_path_for_piece(self, piece_index: int) -> str:
+        if not self.file_layout:
+            return self.target_file_path
+        if piece_index not in self.piece_to_file_mapper:
+            raise ValueError(
+                f"Piece index {piece_index} is out of bounds for file layout"
+            )
+        return self.piece_to_file_mapper.get(piece_index)
 
     def register_piece_hash(self, index: int, piece_hash: bytes) -> None:
         self.pieces[index] = piece_hash
@@ -72,11 +96,12 @@ class PieceManager:
                     offset=offset,
                 )
             else:
+                file_path = self._get_file_path_for_piece(index)
                 await asyncio.to_thread(
                     self.file_manager.save_piece,
                     piece_index=index,
                     data=data,
-                    file_path=self.target_file_path,
+                    file_path=file_path,
                     piece_length=self.piece_length,
                     offset=offset,
                 )
@@ -98,8 +123,11 @@ class PieceManager:
 
         return False
 
-    def get_piece(self, index: int) -> bytes:
-        return self.pieces[index]
+    async def get_block(self, index: int, begin: int, length: int) -> bytes:
+        file_path = self._get_file_path_for_piece(index)
+        return await asyncio.to_thread(
+            self.file_manager.read_block, index, begin, length, file_path
+        )
 
     async def acquire_piece(self, peer_bitfield: bytes) -> int | None:
         async with self._lock:

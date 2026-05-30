@@ -3,6 +3,7 @@ from typing import Any
 
 from src.peer.message import Message, MessageType
 from src.peer.tcp_protocol import TCPProtocol
+from src.piece.piece_manager import PieceManager
 from src.utils.logger import logger
 
 BLOCK_SIZE = 16384
@@ -41,6 +42,11 @@ MESSAGE_TO_FUNC_MAPPER = {
         "is_async": True,
         "expects_payload": True,
     },
+    MessageType.REQUEST: {
+        "func": "process_request",
+        "is_async": True,
+        "expects_payload": True,
+    },
     MessageType.PIECE: {
         "func": "process_piece",
         "is_async": True,
@@ -58,10 +64,10 @@ class Peer:
     def __init__(
         self,
         peer_id: bytes,
+        piece_manager: PieceManager,
         ip: str = "",
         port: int = 0,
         number_of_pieces: int = 0,
-        piece_manager: Any = None,
     ):
         self.peer_id = peer_id
         self.ip = ip
@@ -188,6 +194,32 @@ class Peer:
             await self._request_available_piece()
         except ValueError as e:
             logger.error(e)
+
+    async def process_request(self, payload: bytes) -> None:
+        if len(payload) != 12:
+            return
+        idx = int.from_bytes(payload[:4], "big")
+        begin = int.from_bytes(payload[4:8], "big")
+        length = int.from_bytes(payload[8:12], "big")
+        logger.info(
+            f"Received request for block {idx}, offset {begin}, length {length} from {self.peer_id.hex()}"
+        )
+        if self.piece_manager and idx in self.piece_manager.downloaded:
+            piece_data = await self.piece_manager.get_block(idx, begin, length)
+            block_data = piece_data[begin : begin + length]
+            response_payload = (
+                idx.to_bytes(4, "big") + begin.to_bytes(4, "big") + block_data
+            )
+            logger.info(
+                f"Sending block {idx}, offset {begin}, length {length} to {self.peer_id.hex()})"
+            )
+            await self.tcp_protocol.send_message(
+                Message(
+                    msg_length=len(response_payload) + 1,
+                    msg_type=MessageType.PIECE,
+                    payload=response_payload,
+                )
+            )
 
     async def process_piece(self, payload: bytes) -> None:
         if len(payload) < 8:

@@ -104,6 +104,7 @@ class Torrent:
         self.info_hash = sha1_encode(bencoded_info)
 
     def _register_pieces(self) -> None:
+        file_layout = self.files if len(self.files) > 1 else None
         self.piece_manager = PieceManager(
             pieces=[b""] * self.number_of_pieces,
             file_manager=self.file_manager,
@@ -111,7 +112,7 @@ class Torrent:
             total_length=self.length,
             target_file_path=self.name,
             torrent=self,
-            file_layout=self.files,
+            file_layout=file_layout,
         )
         logger.info(f"Registering {self.number_of_pieces} pieces...")
         for i in range(self.number_of_pieces):
@@ -120,6 +121,8 @@ class Torrent:
             if (i + 1) % 5000 == 0:
                 logger.info(f"Pieces registered: {i + 1}/{self.number_of_pieces}")
         logger.info("Piece registration completed.")
+        self.piece_manager._construct_piece_to_file_mapper()
+        logger.info("Piece to file mapping constructed.")
 
     def _resolve_torrent_path(self, file_path: str) -> Path:
         candidate = Path(file_path)

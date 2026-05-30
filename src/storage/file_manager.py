@@ -99,20 +99,18 @@ class FileManager:
         if data_offset < len(data):
             raise ValueError("Piece data exceeds declared torrent file layout")
 
-    def read_piece(
+    def read_block(
         self,
         piece_index: int,
+        offset: int,
         length: int,
         file_path: str,
-        piece_length: int,
-        offset: int = 0,
     ) -> bytes:
-        logger.debug(
-            f"Reading piece {piece_index} from {file_path} at offset {offset} with length {length}"
-        )
+        logger.debug(f"Reading block {piece_index} from {file_path}")
         full_path = Path(self.default_directory) / file_path
+        absolute_offset = piece_index * length + offset
         with open(full_path, "rb") as f:
-            f.seek(piece_index * piece_length + offset)
+            f.seek(absolute_offset)
             return f.read(length)
 
     def preallocate_file(self, file_path: str, length: int) -> None:
