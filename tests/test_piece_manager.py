@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock, patch, call
+from unittest.mock import AsyncMock, patch
 import threading
 
 import asyncio
