@@ -105,10 +105,11 @@ class FileManager:
         offset: int,
         length: int,
         file_path: str,
+        piece_length: int,
     ) -> bytes:
         logger.debug(f"Reading block {piece_index} from {file_path}")
         full_path = Path(self.default_directory) / file_path
-        absolute_offset = piece_index * length + offset
+        absolute_offset = piece_index * piece_length + offset
         with open(full_path, "rb") as f:
             f.seek(absolute_offset)
             return f.read(length)
