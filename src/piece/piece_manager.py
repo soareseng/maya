@@ -41,9 +41,11 @@ class PieceManager:
 
         for piece_index in range(self.total_pieces):
             piece_offset = piece_index * self.piece_length
+            file_comulative = 0
             for file_info in self.file_layout:
-                file_start = file_info["offset"]
-                file_end = file_start + file_info["length"]
+                file_start = file_comulative
+                file_end = file_comulative + file_info["length"]
+                file_comulative += file_info["length"]
                 if file_start <= piece_offset < file_end:
                     self.piece_to_file_mapper[piece_index] = file_info["path"]
                     break
