@@ -205,13 +205,12 @@ class Peer:
             f"Received request for block {idx}, offset {begin}, length {length} from {self.peer_id.hex()}"
         )
         if self.piece_manager and idx in self.piece_manager.downloaded:
-            piece_data = await self.piece_manager.get_block(idx, begin, length)
-            block_data = piece_data[begin : begin + length]
+            block_data = await self.piece_manager.get_block(idx, begin, length)
             response_payload = (
                 idx.to_bytes(4, "big") + begin.to_bytes(4, "big") + block_data
             )
             logger.info(
-                f"Sending block {idx}, offset {begin}, length {length} to {self.peer_id.hex()})"
+                f"Sending block {idx}, offset {begin}, length {length} to {self.peer_id.hex()}"
             )
             await self.tcp_protocol.send_message(
                 Message(
