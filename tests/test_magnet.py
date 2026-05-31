@@ -26,7 +26,7 @@ def test_parse_magnet_link():
 def test_parse_magnet_link_invalid_info_hash():
     magnet_link = "magnet:?xt=urn:btih:invalid_info_hash&dn=example_file.txt&tr=udp%3A%2F%2Ftracker.example.com%3A6969%2Fannounce"
     with pytest.raises(
-        ValueError, match="Invalid info hash length: 17. Expected 40 characters."
+        ValueError, match=r"Invalid info hash length: 17\. Expected 40 characters\."
     ):
         parse_magnet_link(magnet_link)
 
@@ -34,6 +34,6 @@ def test_parse_magnet_link_invalid_info_hash():
 def test_parse_magnet_link_missing_query():
     magnet_link = "magnet:invalid_link"
     with pytest.raises(
-        ValueError, match="Invalid magnet link: missing query parameters."
+        ValueError, match=r"Invalid magnet link: missing query parameters\."
     ):
         parse_magnet_link(magnet_link)
