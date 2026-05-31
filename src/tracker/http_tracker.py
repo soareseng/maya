@@ -2,7 +2,7 @@ from typing import Any
 
 import requests
 
-from src.encoder.bencoder import Decoder
+from src.encoder.bencoder import Decoder, BencodeValue
 from src.tracker.tracker import Tracker
 from src.utils.logger import logger
 
@@ -13,7 +13,12 @@ class HTTPTracker(Tracker):
 
     def _parse_response(self, data: bytes) -> dict[str, Any]:
         decoder = Decoder(data)
-        decoded = decoder.decode()
+        decoded_value = decoder.decode()
+
+        if not isinstance(decoded_value, dict):
+            return {"peers": b"", "interval": 1800, "complete": 0, "incomplete": 0}
+
+        decoded: dict[bytes, BencodeValue] = decoded_value
 
         return {
             "peers": decoded.get(b"peers", b""),

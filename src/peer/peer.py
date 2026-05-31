@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any
+from typing import Any, cast, Awaitable
 
 from src.peer.message import Message, MessageType
 from src.peer.tcp_protocol import TCPProtocol
@@ -64,7 +64,7 @@ class Peer:
     def __init__(
         self,
         peer_id: bytes,
-        piece_manager: PieceManager,
+        piece_manager: PieceManager | None,
         ip: str = "",
         port: int = 0,
         number_of_pieces: int = 0,
@@ -212,13 +212,14 @@ class Peer:
             logger.info(
                 f"Sending block {idx}, offset {begin}, length {length} to {self.peer_id.hex()}"
             )
-            await self.tcp_protocol.send_message(
-                Message(
-                    msg_length=len(response_payload) + 1,
-                    msg_type=MessageType.PIECE,
-                    payload=response_payload,
+            if self.tcp_protocol:
+                await self.tcp_protocol.send_message(
+                    Message(
+                        msg_length=len(response_payload) + 1,
+                        msg_type=MessageType.PIECE,
+                        payload=response_payload,
+                    )
                 )
-            )
 
     async def process_piece(self, payload: bytes) -> None:
         if len(payload) < 8:
@@ -251,30 +252,36 @@ class Peer:
 
         self.pending_requests.pop((piece_index, offset), None)
 
-    async def handle_message(self, message: Message, payload: bytes) -> None:
+    async def handle_message(self, message: Message, payload: bytes | None) -> None:
         msg_type = message.msg_type
         message_handler = MESSAGE_TO_FUNC_MAPPER.get(msg_type)
         if message_handler is None:
             logger.warning(f"Unknown message type {msg_type} from {self.peer_id.hex()}")
             return
-        func_name = message_handler["func"]
+        func_name = cast(str, message_handler["func"])
         is_async = message_handler["is_async"]
         expects_payload = message_handler["expects_payload"]
-        func = getattr(self, func_name, None)
-        if func is None:
+        if not hasattr(self, func_name):
             logger.warning(
                 f"No handler function {func_name} for message type {msg_type}"
             )
             return
+        func: Any = getattr(self, func_name)
         if expects_payload and not payload:
             logger.warning(
                 f"Message type {msg_type} from {self.peer_id.hex()} expected payload but got none"
             )
             return
         if is_async:
-            await func(payload) if expects_payload else await func()
+            if expects_payload:
+                await func(payload)
+            else:
+                await func()
         else:
-            func(payload) if expects_payload else func()
+            if expects_payload:
+                func(payload)
+            else:
+                func()
 
     async def connect_async(self, ip: str, port: int, info_hash: bytes) -> bool:
         self.tcp_protocol = TCPProtocol(self)
@@ -293,9 +300,9 @@ class Peer:
         try:
             while self.tcp_protocol.is_connected:
                 try:
+                    coro = cast(Awaitable[Message], self.tcp_protocol.receive_message())
                     message = await asyncio.wait_for(
-                        self.tcp_protocol.receive_message(),
-                        timeout=PEER_MESSAGE_IDLE_TIMEOUT_SECONDS,
+                        coro, timeout=PEER_MESSAGE_IDLE_TIMEOUT_SECONDS
                     )
                 except asyncio.TimeoutError:
                     await self.tcp_protocol.send_keepalive()
