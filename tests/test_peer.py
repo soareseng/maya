@@ -21,7 +21,7 @@ class FakePieceManager:
 
 
 def test_handshake_and_update_bitfield_validation() -> None:
-    peer = Peer(peer_id=b"peer", number_of_pieces=16)
+    peer = Peer(peer_id=b"peer", number_of_pieces=16, piece_manager=FakePieceManager())
 
     assert (
         peer.handshake(b"a" * 20, b"b" * 20)
@@ -149,7 +149,13 @@ def test_connect_async_success_and_failure(monkeypatch) -> None:
 
     monkeypatch.setattr("src.peer.peer.TCPProtocol", protocol_factory)
 
-    peer = Peer(peer_id=b"peer", ip="127.0.0.1", port=6881, number_of_pieces=8)
+    peer = Peer(
+        peer_id=b"peer",
+        ip="127.0.0.1",
+        port=6881,
+        number_of_pieces=8,
+        piece_manager=FakePieceManager(),
+    )
     connected = asyncio.run(peer.connect_async("127.0.0.1", 6881, b"hash"))
     assert connected is True
     assert peer.am_interested is True
@@ -169,7 +175,13 @@ def test_connect_async_success_and_failure(monkeypatch) -> None:
 
     monkeypatch.setattr("src.peer.peer.TCPProtocol", closed_factory)
 
-    peer = Peer(peer_id=b"peer", ip="127.0.0.1", port=6881, number_of_pieces=8)
+    peer = Peer(
+        peer_id=b"peer",
+        ip="127.0.0.1",
+        port=6881,
+        number_of_pieces=8,
+        piece_manager=FakePieceManager(),
+    )
     connected = asyncio.run(peer.connect_async("127.0.0.1", 6881, b"hash"))
     assert connected is False
     assert closed_protocol.sent == []
