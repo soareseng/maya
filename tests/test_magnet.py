@@ -29,3 +29,11 @@ def test_parse_magnet_link_invalid_info_hash():
         ValueError, match="Invalid info hash length: 17. Expected 40 characters."
     ):
         parse_magnet_link(magnet_link)
+
+
+def test_parse_magnet_link_missing_query():
+    magnet_link = "magnet:invalid_link"
+    with pytest.raises(
+        ValueError, match="Invalid magnet link: missing query parameters."
+    ):
+        parse_magnet_link(magnet_link)
