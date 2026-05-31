@@ -155,6 +155,7 @@ def test_get_file_path_for_piece_with_and_without_layout() -> None:
         target_file_path="target.bin",
         torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
     )
+    manager._construct_piece_to_file_mapper()
     assert manager._get_file_path_for_piece(0) == "target.bin"
 
     manager_with_layout = PieceManager(
@@ -169,6 +170,7 @@ def test_get_file_path_for_piece_with_and_without_layout() -> None:
             {"path": "file-b.bin", "length": 2},
         ],
     )
+    manager_with_layout._construct_piece_to_file_mapper()
     assert manager_with_layout._get_file_path_for_piece(0) == "file-a.bin"
 
 
@@ -202,8 +204,9 @@ def test_get_block() -> None:
     manager._get_file_path_for_piece = Mock(return_value="file-a.bin")
     fake_file_manager.read_block = Mock(return_value=b"data")
 
-    block_data = manager.get_block(index=0, begin=0, length=4)
+    block_data = asyncio.run(manager.get_block(index=0, begin=0, length=4))
 
     assert block_data == b"data"
+    manager._construct_piece_to_file_mapper()
     manager._get_file_path_for_piece.assert_called_once_with(0)
-    fake_file_manager.read_block.assert_called_once_with(0, 0, 4, "file-a.bin")
+    fake_file_manager.read_block.assert_called_once_with(0, 0, 4, "file-a.bin", 4)

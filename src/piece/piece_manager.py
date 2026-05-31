@@ -128,7 +128,12 @@ class PieceManager:
     async def get_block(self, index: int, begin: int, length: int) -> bytes:
         file_path = self._get_file_path_for_piece(index)
         return await asyncio.to_thread(
-            self.file_manager.read_block, index, begin, length, file_path, self.piece_length
+            self.file_manager.read_block,
+            index,
+            begin,
+            length,
+            file_path,
+            self.piece_length,
         )
 
     async def acquire_piece(self, peer_bitfield: bytes) -> int | None:
