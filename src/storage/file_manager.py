@@ -106,13 +106,45 @@ class FileManager:
         length: int,
         file_path: str,
         piece_length: int,
+        files: list[dict] | str,
     ) -> bytes:
-        logger.debug(f"Reading block {piece_index} from {file_path}")
-        full_path = Path(self.default_directory) / file_path
-        absolute_offset = piece_index * piece_length + offset
-        with open(full_path, "rb") as f:
-            f.seek(absolute_offset)
-            return f.read(length)
+        if isinstance(files, str):
+            full_path = Path(self.default_directory) / file_path
+            absolute_offset = piece_index * piece_length + offset
+            with open(full_path, "rb") as f:
+                f.seek(absolute_offset)
+                return f.read(length)
+
+        accumulator = 0
+        data = bytearray()
+
+        for file in files:
+            file_path = str(file["path"])
+            file_length = int(file["length"])
+            file_start = accumulator
+            file_end = file_start + file_length
+            accumulator = file_end
+
+            if offset >= file_end:
+                continue
+
+            read_start = max(0, offset - file_start)
+            readable = file_end - (file_start + read_start)
+            chunk_len = min(readable, length)
+
+            if chunk_len <= 0:
+                break
+
+            handle = self._get_file_handle(file_path)
+            handle.seek(read_start)
+            data += handle.read(chunk_len)
+            offset += chunk_len
+            length -= chunk_len
+
+            if length <= 0:
+                break
+
+        return data
 
     def preallocate_file(self, file_path: str, length: int) -> None:
         full_path = Path(self.default_directory) / file_path
