@@ -18,7 +18,9 @@ def parse_magnet_link(magnet_link: str) -> MagnetInfo:
     Returns:
         MagnetInfo: An object containing the name, tracker URL, and info hash.
     """
-    params = magnet_link.split('?')[1].split('&')
+    if '?' not in magnet_link:
+        raise ValueError("Invalid magnet link: missing query parameters.")
+    params = magnet_link.split('?', 1)[1].split('&')
     info_hash = None
     name = None
     tracker_urls = []
