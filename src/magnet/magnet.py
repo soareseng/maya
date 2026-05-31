@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 
 
 @dataclass
@@ -35,6 +35,6 @@ def parse_magnet_link(magnet_link: str) -> MagnetInfo:
         elif param.startswith("dn="):
             name = unquote(param.split("dn=")[1])
         elif param.startswith("tr="):
-            tracker_url = unquote(urlparse(param.split("tr=")[1]).geturl())
+            tracker_url = unquote(param.split("tr=", 1)[1])
             tracker_urls.append(tracker_url)
     return MagnetInfo(name=name, tracker_urls=tracker_urls, info_hash=info_hash)
