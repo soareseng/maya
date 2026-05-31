@@ -106,8 +106,9 @@ class PieceManager:
             index,
             begin,
             length,
-            self.file_layout or self.target_file_path,
+            self.target_file_path,
             self.piece_length,
+            self.file_layout or self.target_file_path,
         )
 
     async def acquire_piece(self, peer_bitfield: bytes) -> int | None:
