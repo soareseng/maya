@@ -145,7 +145,11 @@ class Torrent:
             data = f.read()
 
         decoder = Decoder(data)
-        torrent_data = decoder.decode()
+        torrent_data_value = decoder.decode()
+        if not isinstance(torrent_data_value, dict):
+            raise ValueError("Invalid torrent file: expected dictionary at top level")
+
+        torrent_data: dict[bytes, Any] = torrent_data_value
 
         info = torrent_data[b"info"]
         self._set_announce_list(torrent_data)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Coroutine, Any
 import logging
 import os
 import re
@@ -471,8 +472,8 @@ class OrangeBlackTUI:
         bottom = f"{ANSI_BLACK_BG}{ANSI_ORANGE}╚{'═' * (width - 2)}╝{ANSI_RESET}"
         return top + "\n".join(body) + "\n" + bottom
 
-    async def run(self, torrent_coro: asyncio.Future) -> None:
-        task = asyncio.create_task(torrent_coro)
+    async def run(self, torrent_coro: Coroutine[Any, Any, None]) -> None:
+        task: asyncio.Task[None] = asyncio.create_task(torrent_coro)
         self._setup_keyboard()
         print(ANSI_HIDE_CURSOR, end="")
         try:
