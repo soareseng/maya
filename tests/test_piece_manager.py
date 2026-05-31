@@ -146,51 +146,6 @@ def test_mark_piece_available_and_unavailable() -> None:
     assert 0 not in manager.available
 
 
-def test_get_file_path_for_piece_with_and_without_layout() -> None:
-    manager = PieceManager(
-        pieces=[b"hash0"],
-        file_manager=FakeFileManager(),
-        piece_length=4,
-        total_length=4,
-        target_file_path="target.bin",
-        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
-    )
-    manager._construct_piece_to_file_mapper()
-    assert manager._get_file_path_for_piece(0) == "target.bin"
-
-    manager_with_layout = PieceManager(
-        pieces=[b"hash0"],
-        file_manager=FakeFileManager(),
-        piece_length=4,
-        total_length=4,
-        target_file_path="target.bin",
-        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
-        file_layout=[
-            {"path": "file-a.bin", "length": 2},
-            {"path": "file-b.bin", "length": 2},
-        ],
-    )
-    manager_with_layout._construct_piece_to_file_mapper()
-    assert manager_with_layout._get_file_path_for_piece(0) == "file-a.bin"
-
-
-def test_construct_piece_to_file_mapper_correctly_maps_pieces() -> None:
-    manager = PieceManager(
-        pieces=[b"hash0", b"hash1"],
-        file_manager=FakeFileManager(),
-        piece_length=4,
-        total_length=8,
-        target_file_path="target.bin",
-        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
-        file_layout=[
-            {"path": "file-a.bin", "length": 4},
-            {"path": "file-b.bin", "length": 4},
-        ],
-    )
-    manager._construct_piece_to_file_mapper()
-    assert manager.piece_to_file_mapper == {0: "file-a.bin", 1: "file-b.bin"}
-
-
 def test_get_block() -> None:
     fake_file_manager = FakeFileManager()
     manager = PieceManager(
@@ -201,12 +156,9 @@ def test_get_block() -> None:
         target_file_path="target.bin",
         torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
     )
-    manager._get_file_path_for_piece = Mock(return_value="file-a.bin")
     fake_file_manager.read_block = Mock(return_value=b"data")
 
     block_data = asyncio.run(manager.get_block(index=0, begin=0, length=4))
 
     assert block_data == b"data"
-    manager._construct_piece_to_file_mapper()
-    manager._get_file_path_for_piece.assert_called_once_with(0)
-    fake_file_manager.read_block.assert_called_once_with(0, 0, 4, "file-a.bin", 4)
+    fake_file_manager.read_block.assert_called_once_with(0, 0, 4, "target.bin", 4)
