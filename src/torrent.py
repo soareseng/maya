@@ -121,8 +121,6 @@ class Torrent:
             if (i + 1) % 5000 == 0:
                 logger.info(f"Pieces registered: {i + 1}/{self.number_of_pieces}")
         logger.info("Piece registration completed.")
-        self.piece_manager._construct_piece_to_file_mapper()
-        logger.info("Piece to file mapping constructed.")
 
     def _resolve_torrent_path(self, file_path: str) -> Path:
         candidate = Path(file_path)

@@ -33,31 +33,6 @@ class PieceManager:
         self.blocks: Dict[int, Dict[int, int]] = {}
         self._received_bytes_per_piece: dict[int, int] = {}
         self.torrent = torrent
-        self.piece_to_file_mapper = {}
-
-    def _construct_piece_to_file_mapper(self):
-        if not self.file_layout:
-            return
-
-        for piece_index in range(self.total_pieces):
-            piece_offset = piece_index * self.piece_length
-            file_comulative = 0
-            for file_info in self.file_layout:
-                file_start = file_comulative
-                file_end = file_comulative + file_info["length"]
-                file_comulative += file_info["length"]
-                if file_start <= piece_offset < file_end:
-                    self.piece_to_file_mapper[piece_index] = file_info["path"]
-                    break
-
-    def _get_file_path_for_piece(self, piece_index: int) -> str:
-        if not self.file_layout:
-            return self.target_file_path
-        if piece_index not in self.piece_to_file_mapper:
-            raise ValueError(
-                f"Piece index {piece_index} is out of bounds for file layout"
-            )
-        return self.piece_to_file_mapper.get(piece_index)
 
     def register_piece_hash(self, index: int, piece_hash: bytes) -> None:
         self.pieces[index] = piece_hash
@@ -98,7 +73,7 @@ class PieceManager:
                     offset=offset,
                 )
             else:
-                file_path = self._get_file_path_for_piece(index)
+                file_path = self.target_file_path
                 await asyncio.to_thread(
                     self.file_manager.save_piece,
                     piece_index=index,
@@ -126,13 +101,12 @@ class PieceManager:
         return False
 
     async def get_block(self, index: int, begin: int, length: int) -> bytes:
-        file_path = self._get_file_path_for_piece(index)
         return await asyncio.to_thread(
             self.file_manager.read_block,
             index,
             begin,
             length,
-            file_path,
+            self.file_layout or self.target_file_path,
             self.piece_length,
         )
 
