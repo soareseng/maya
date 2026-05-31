@@ -2,6 +2,7 @@ import asyncio
 from typing import Dict
 from src.peer.message import MessageType, Message
 
+from src.storage.file_manager import FileManager
 from src.utils.logger import logger
 
 
@@ -9,7 +10,7 @@ class PieceManager:
     def __init__(
         self,
         pieces: list[bytes],
-        file_manager,
+        file_manager: FileManager,
         piece_length: int,
         total_length: int,
         target_file_path: str,
@@ -72,11 +73,12 @@ class PieceManager:
                     offset=offset,
                 )
             else:
+                file_path = self.target_file_path
                 await asyncio.to_thread(
                     self.file_manager.save_piece,
                     piece_index=index,
                     data=data,
-                    file_path=self.target_file_path,
+                    file_path=file_path,
                     piece_length=self.piece_length,
                     offset=offset,
                 )
@@ -98,8 +100,16 @@ class PieceManager:
 
         return False
 
-    def get_piece(self, index: int) -> bytes:
-        return self.pieces[index]
+    async def get_block(self, index: int, begin: int, length: int) -> bytes:
+        return await asyncio.to_thread(
+            self.file_manager.read_block,
+            index,
+            begin,
+            length,
+            self.target_file_path,
+            self.piece_length,
+            self.file_layout or self.target_file_path,
+        )
 
     async def acquire_piece(self, peer_bitfield: bytes) -> int | None:
         async with self._lock:

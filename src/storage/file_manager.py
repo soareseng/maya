@@ -99,21 +99,53 @@ class FileManager:
         if data_offset < len(data):
             raise ValueError("Piece data exceeds declared torrent file layout")
 
-    def read_piece(
+    def read_block(
         self,
         piece_index: int,
+        offset: int,
         length: int,
         file_path: str,
         piece_length: int,
-        offset: int = 0,
+        files: list[dict] | str,
     ) -> bytes:
-        logger.debug(
-            f"Reading piece {piece_index} from {file_path} at offset {offset} with length {length}"
-        )
-        full_path = Path(self.default_directory) / file_path
-        with open(full_path, "rb") as f:
-            f.seek(piece_index * piece_length + offset)
-            return f.read(length)
+        if isinstance(files, str):
+            full_path = Path(self.default_directory) / file_path
+            absolute_offset = piece_index * piece_length + offset
+            with open(full_path, "rb") as f:
+                f.seek(absolute_offset)
+                return f.read(length)
+
+        offset = piece_index * piece_length + offset
+        accumulator = 0
+        data = bytearray()
+
+        for file in files:
+            file_path = str(file["path"])
+            file_length = int(file["length"])
+            file_start = accumulator
+            file_end = file_start + file_length
+            accumulator = file_end
+
+            if offset >= file_end:
+                continue
+
+            read_start = max(0, offset - file_start)
+            readable = file_end - (file_start + read_start)
+            chunk_len = min(readable, length)
+
+            if chunk_len <= 0:
+                break
+
+            handle = self._get_file_handle(file_path)
+            handle.seek(read_start)
+            data += handle.read(chunk_len)
+            offset += chunk_len
+            length -= chunk_len
+
+            if length <= 0:
+                break
+
+        return bytes(data)
 
     def preallocate_file(self, file_path: str, length: int) -> None:
         full_path = Path(self.default_directory) / file_path

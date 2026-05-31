@@ -5,6 +5,7 @@ import asyncio
 
 from src.piece.piece_manager import PieceManager
 from src.peer.message import MessageType
+from src.storage.file_manager import FileManager
 
 
 class FakeFileManager:
@@ -144,3 +145,60 @@ def test_mark_piece_available_and_unavailable() -> None:
 
     manager.mark_piece_unavailable(0)
     assert 0 not in manager.available
+
+
+def test_get_block(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    file_manager = FileManager()
+    manager = PieceManager(
+        pieces=[b"hash0"],
+        file_manager=file_manager,
+        piece_length=4,
+        total_length=4,
+        target_file_path="target.bin",
+        file_layout=None,
+        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
+    )
+    file_manager.read_block = Mock(return_value=b"data")
+
+    block_data = asyncio.run(manager.get_block(index=0, begin=0, length=4))
+
+    assert block_data == b"data"
+    file_manager.read_block.assert_called_once_with(
+        0, 0, 4, "target.bin", 4, "target.bin"
+    )
+
+
+def test_get_block_with_multi_file_layout(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    file_manager = FileManager()
+    manager = PieceManager(
+        pieces=[b"hash0"],
+        file_manager=file_manager,
+        piece_length=4,
+        total_length=4,
+        target_file_path="target.bin",
+        file_layout=[
+            {"path": "file-a.bin", "length": 2},
+            {"path": "file-b.bin", "length": 2},
+        ],
+        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
+    )
+    file_manager.read_block = Mock(return_value=b"data")
+
+    block_data = asyncio.run(manager.get_block(index=0, begin=0, length=4))
+
+    assert block_data == b"data"
+    file_manager.read_block.assert_called_once_with(
+        0,
+        0,
+        4,
+        "target.bin",
+        4,
+        [
+            {"path": "file-a.bin", "length": 2},
+            {"path": "file-b.bin", "length": 2},
+        ],
+    )
