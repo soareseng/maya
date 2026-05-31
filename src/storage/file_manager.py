@@ -115,6 +115,7 @@ class FileManager:
                 f.seek(absolute_offset)
                 return f.read(length)
 
+        offset = piece_index * piece_length + offset
         accumulator = 0
         data = bytearray()
 
@@ -144,7 +145,7 @@ class FileManager:
             if length <= 0:
                 break
 
-        return data
+        return bytes(data)
 
     def preallocate_file(self, file_path: str, length: int) -> None:
         full_path = Path(self.default_directory) / file_path
