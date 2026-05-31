@@ -28,7 +28,7 @@ def parse_magnet_link(magnet_link: str) -> MagnetInfo:
             if len(info_hash) != 40:
                 raise ValueError(f"Invalid info hash length: {len(info_hash)}. Expected 40 characters.")
         elif param.startswith('dn='):
-            name = param.split('dn=')[1]
+            name = unquote(param.split('dn=')[1])
         elif param.startswith('tr='):
             tracker_url = unquote(urlparse(param.split('tr=')[1]).geturl())
             tracker_urls.append(tracker_url)
