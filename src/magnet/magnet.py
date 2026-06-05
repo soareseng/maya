@@ -1,23 +1,24 @@
 from dataclasses import dataclass
 
+from typing import Optional
 from urllib.parse import unquote
 
 
 @dataclass
 class MagnetInfo:
-    name: str
-    tracker_urls: list[str]
-    info_hash: str
+    name: Optional[str] = None
+    tracker_urls: Optional[list[str]] = None
+    info_hash: Optional[str] = None
 
 
 def parse_magnet_link(magnet_link: str) -> MagnetInfo:
     """
-    Parses a magnet link and extracts the name, tracker URL, and info hash.
+    Parses a magnet link and extracts the name, tracker URLs, and info hash.
 
     Args:
         magnet_link (str): The magnet link to parse.
     Returns:
-        MagnetInfo: An object containing the name, tracker URL, and info hash.
+        MagnetInfo: An object containing the name, tracker URLs, and info hash.
     """
     if "?" not in magnet_link:
         raise ValueError("Invalid magnet link: missing query parameters.")
@@ -27,7 +28,8 @@ def parse_magnet_link(magnet_link: str) -> MagnetInfo:
     tracker_urls = []
     for param in params:
         if param.startswith("xt=urn:btih:"):
-            info_hash = param.split("xt=urn:btih:")[1]
+            info_hash = param.split("xt=urn:btih:")
+            info_hash = info_hash[1]
             if len(info_hash) != 40:
                 raise ValueError(
                     f"Invalid info hash length: {len(info_hash)}. Expected 40 characters."
