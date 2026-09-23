@@ -70,10 +70,12 @@ def test_register_block_completes_piece_and_sends_have() -> None:
         def __hash__(self) -> int:
             return id(self)
 
-    peer_protocol = SimpleNamespace(is_connected=True, send_message=AsyncMock())
+    peer_protocol = SimpleNamespace(
+        is_connected=True, send_message=AsyncMock())
     peer = FakePeer()
     peer.tcp_protocol = peer_protocol
-    torrent = SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: {peer}))
+    torrent = SimpleNamespace(
+        peer_manager=SimpleNamespace(get_peers=lambda: {peer}))
     manager = PieceManager(
         pieces=[b"hash0"],
         file_manager=FakeFileManager(),
@@ -83,7 +85,8 @@ def test_register_block_completes_piece_and_sends_have() -> None:
         torrent=torrent,
     )
 
-    complete = asyncio.run(manager.register_block(index=0, data=b"abcd", offset=0))
+    complete = asyncio.run(manager.register_block(
+        index=0, data=b"abcd", offset=0))
 
     assert complete is True
     assert manager.downloaded == {0}
@@ -111,14 +114,16 @@ def test_register_block_uses_multi_file_layout_when_present() -> None:
         piece_length=4,
         total_length=4,
         target_file_path="target.bin",
-        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
+        torrent=SimpleNamespace(
+            peer_manager=SimpleNamespace(get_peers=lambda: set())),
         file_layout=[
             {"path": "file-a.bin", "length": 2},
             {"path": "file-b.bin", "length": 2},
         ],
     )
 
-    complete = asyncio.run(manager.register_block(index=0, data=b"ab", offset=0))
+    complete = asyncio.run(manager.register_block(
+        index=0, data=b"ab", offset=0))
 
     assert complete is False
     assert manager.file_manager.saved_piece_to_files_calls == [
@@ -158,11 +163,12 @@ def test_get_block(monkeypatch, tmp_path) -> None:
         total_length=4,
         target_file_path="target.bin",
         file_layout=None,
-        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
+        torrent=SimpleNamespace(
+            peer_manager=SimpleNamespace(get_peers=lambda: set())),
     )
     file_manager.read_block = Mock(return_value=b"data")
 
-    block_data = asyncio.run(manager.get_block(index=0, begin=0, length=4))
+    block_data = asyncio.run(manager.read_block(index=0, begin=0, length=4))
 
     assert block_data == b"data"
     file_manager.read_block.assert_called_once_with(
@@ -184,11 +190,12 @@ def test_get_block_with_multi_file_layout(monkeypatch, tmp_path) -> None:
             {"path": "file-a.bin", "length": 2},
             {"path": "file-b.bin", "length": 2},
         ],
-        torrent=SimpleNamespace(peer_manager=SimpleNamespace(get_peers=lambda: set())),
+        torrent=SimpleNamespace(
+            peer_manager=SimpleNamespace(get_peers=lambda: set())),
     )
     file_manager.read_block = Mock(return_value=b"data")
 
-    block_data = asyncio.run(manager.get_block(index=0, begin=0, length=4))
+    block_data = asyncio.run(manager.read_block(index=0, begin=0, length=4))
 
     assert block_data == b"data"
     file_manager.read_block.assert_called_once_with(

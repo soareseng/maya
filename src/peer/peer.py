@@ -96,7 +96,8 @@ class Peer:
         expected_size = (self.number_of_pieces + 7) // 8
         if expected_size and len(payload) != expected_size:
             raise ValueError(
-                f"Invalid bitfield size. Expected {expected_size}, got {len(payload)}"
+                f"Invalid bitfield size. Expected {
+                    expected_size}, got {len(payload)}"
             )
         self.bitfield = bytearray(payload)
         return payload
@@ -113,7 +114,8 @@ class Peer:
     def _release_current_piece(self) -> None:
         if self.current_piece_index is not None and self.piece_manager:
             if self.current_piece_index not in self.piece_manager.downloaded:
-                self.piece_manager.mark_piece_available(self.current_piece_index)
+                self.piece_manager.mark_piece_available(
+                    self.current_piece_index)
 
         self.current_piece_index = None
         self.current_piece_size = 0
@@ -140,7 +142,8 @@ class Peer:
             and self.next_request_offset < self.current_piece_size
         ):
             logger.debug(
-                f"Requesting block at offset {self.next_request_offset} of piece {self.current_piece_index} from {self.peer_id.hex()}"
+                f"Requesting block at offset {self.next_request_offset} of piece {
+                    self.current_piece_index} from {self.peer_id.hex()}"
             )
             offset = self.next_request_offset
             size = min(BLOCK_SIZE, self.current_piece_size - offset)
@@ -202,15 +205,17 @@ class Peer:
         begin = int.from_bytes(payload[4:8], "big")
         length = int.from_bytes(payload[8:12], "big")
         logger.info(
-            f"Received request for block {idx}, offset {begin}, length {length} from {self.peer_id.hex()}"
+            f"Received request for block {idx}, offset {
+                begin}, length {length} from {self.peer_id.hex()}"
         )
         if self.piece_manager and idx in self.piece_manager.downloaded:
-            block_data = await self.piece_manager.get_block(idx, begin, length)
+            block_data = await self.piece_manager.read_block(idx, begin, length)
             response_payload = (
                 idx.to_bytes(4, "big") + begin.to_bytes(4, "big") + block_data
             )
             logger.info(
-                f"Sending block {idx}, offset {begin}, length {length} to {self.peer_id.hex()}"
+                f"Sending block {idx}, offset {begin}, length {
+                    length} to {self.peer_id.hex()}"
             )
             if self.tcp_protocol:
                 await self.tcp_protocol.send_message(
@@ -256,7 +261,8 @@ class Peer:
         msg_type = message.msg_type
         message_handler = MESSAGE_TO_FUNC_MAPPER.get(msg_type)
         if message_handler is None:
-            logger.warning(f"Unknown message type {msg_type} from {self.peer_id.hex()}")
+            logger.warning(f"Unknown message type {
+                           msg_type} from {self.peer_id.hex()}")
             return
         func_name = cast(str, message_handler["func"])
         is_async = message_handler["is_async"]
@@ -269,7 +275,8 @@ class Peer:
         func: Any = getattr(self, func_name)
         if expects_payload and not payload:
             logger.warning(
-                f"Message type {msg_type} from {self.peer_id.hex()} expected payload but got none"
+                f"Message type {msg_type} from {
+                    self.peer_id.hex()} expected payload but got none"
             )
             return
         if is_async:
@@ -293,14 +300,16 @@ class Peer:
             return False
 
         connected_once = True
-        message = Message(msg_length=1, msg_type=MessageType.INTERESTED, payload=b"")
+        message = Message(
+            msg_length=1, msg_type=MessageType.INTERESTED, payload=b"")
         await self.tcp_protocol.send_message(message)
         self.am_interested = True
 
         try:
             while self.tcp_protocol.is_connected:
                 try:
-                    coro = cast(Awaitable[Message], self.tcp_protocol.receive_message())
+                    coro = cast(Awaitable[Message],
+                                self.tcp_protocol.receive_message())
                     message = await asyncio.wait_for(
                         coro, timeout=PEER_MESSAGE_IDLE_TIMEOUT_SECONDS
                     )
@@ -314,7 +323,8 @@ class Peer:
 
                     if self.pending_stall_count >= MAX_PENDING_STALL_TIMEOUTS:
                         logger.warning(
-                            f"Peer stalled on piece {self.current_piece_index}; reassigning pending blocks from {self.peer_id.hex()}"
+                            f"Peer stalled on piece {
+                                self.current_piece_index}; reassigning pending blocks from {self.peer_id.hex()}"
                         )
                         self._release_current_piece()
                         self.tcp_protocol.close()

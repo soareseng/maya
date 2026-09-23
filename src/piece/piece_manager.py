@@ -100,7 +100,7 @@ class PieceManager:
 
         return False
 
-    async def get_block(self, index: int, begin: int, length: int) -> bytes:
+    async def read_block(self, index: int, begin: int, length: int) -> bytes:
         return await asyncio.to_thread(
             self.file_manager.read_block,
             index,
@@ -148,7 +148,8 @@ class PieceManager:
         if progress_int > self._last_reported_percent:
             self._last_reported_percent = progress_int
             logger.info(
-                f"[PROGRESS] {progress:.2f}% ({len(self.downloaded)}/{self.total_pieces} pieces)"
+                f"[PROGRESS] {progress:.2f}% ({len(
+                    self.downloaded)}/{self.total_pieces} pieces)"
             )
         connected_peers = self.torrent.peer_manager.get_peers()
         tasks = []
@@ -159,7 +160,8 @@ class PieceManager:
                     msg_type=MessageType.HAVE,
                     payload=index.to_bytes(4, "big"),
                 )
-                logger.debug(f"Sending HAVE for piece {index} to {peer.peer_id.hex()}")
+                logger.debug(f"Sending HAVE for piece {
+                             index} to {peer.peer_id.hex()}")
                 tasks.append(peer.tcp_protocol.send_message(message))
 
         if tasks:
