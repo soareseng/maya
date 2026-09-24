@@ -21,8 +21,7 @@ def parse_magnet_link(magnet_link: str) -> MagnetInfo:
         MagnetInfo: An object containing the name, tracker URLs, and info hash.
     """
     if "?" not in magnet_link:
-        raise ValueError(
-            "[MAGNET] Invalid magnet link: missing query parameters.")
+        raise ValueError("[MAGNET] Invalid magnet link: missing query parameters.")
     params = magnet_link.split("?", 1)[1].split("&")
     info_hash = None
     name = None
@@ -32,15 +31,14 @@ def parse_magnet_link(magnet_link: str) -> MagnetInfo:
             info_hash = param.split("xt=urn:btih:")
             info_hash = info_hash[1]
             if len(info_hash) != 40:
-                raise ValueError(
-                    f"[MAGNET] Invalid info hash length: {
-                        len(info_hash)}. Expected 40 characters."
-                )
+                raise ValueError(f"[MAGNET] Invalid info hash length: {
+                        len(info_hash)}. Expected 40 characters.")
         elif param.startswith("dn="):
             name = param.split("dn=")
             if len(name) < 1:
                 raise ValueError(
-                    f"[MAGNET] Invalid name {name}. Expected len(name) >= 1")
+                    f"[MAGNET] Invalid name {name}. Expected len(name) >= 1"
+                )
             name = unquote(name[1])
 
         elif param.startswith("tr="):
